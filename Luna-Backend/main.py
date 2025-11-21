@@ -10,13 +10,14 @@ This module implements all 5 API endpoints for the venue discovery application:
 """
 
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Import data from data.py
 from data import users_dict, venues_dict, interests_list
+from agent import booking_agent
 
 
 # Initialize FastAPI app
@@ -48,6 +49,7 @@ class InterestResponse(BaseModel):
     success: bool
     agent_triggered: bool
     message: str
+    reservation_code: Optional[str] = None
 
 
 # Helper Functions
@@ -310,11 +312,25 @@ def express_interest(request: InterestRequest) -> InterestResponse:
         )
         interests_list.append(new_interest)
         
-        return InterestResponse(
-            success=True,
-            agent_triggered=False,
-            message=f"Interest added for {venues_dict[request.venue_id].name}"
-        )
+        # Check if booking agent should be triggered
+        interested_count = get_interested_count(request.venue_id)
+        venue_name = venues_dict[request.venue_id].name
+        agent_response = booking_agent(request.venue_id, venue_name, interested_count)
+        
+        # Build response based on agent result
+        if agent_response["agent_triggered"]:
+            return InterestResponse(
+                success=True,
+                agent_triggered=True,
+                message=agent_response["message"],
+                reservation_code=agent_response["reservation_code"]
+            )
+        else:
+            return InterestResponse(
+                success=True,
+                agent_triggered=False,
+                message="Interest recorded successfully"
+            )
 
 
 @app.get("/users/{user_id}")
