@@ -55,17 +55,32 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Invalid URL"
+            return "Unable to connect to server"
         case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .decodingError(let error):
-            return "Failed to decode response: \(error.localizedDescription)"
-        case .serverError(let statusCode, let message):
-            return "Server error (\(statusCode)): \(message)"
+            let nsError = error as NSError
+            if nsError.code == NSURLErrorNotConnectedToInternet {
+                return "No internet connection. Please check your network."
+            } else if nsError.code == NSURLErrorTimedOut {
+                return "Request timed out. Please try again."
+            } else if nsError.code == NSURLErrorCannotConnectToHost {
+                return "Unable to connect to server. Please try again."
+            }
+            return "Network error. Please check your connection."
+        case .decodingError:
+            return "Something went wrong. Please try again."
+        case .serverError(let statusCode, _):
+            if statusCode == 404 {
+                return "Content not found."
+            } else if statusCode == 500 {
+                return "Server error. Please try again later."
+            } else if statusCode >= 500 {
+                return "Server is experiencing issues. Please try again later."
+            }
+            return "Something went wrong. Please try again."
         case .noData:
-            return "No data received from server"
+            return "No data received. Please try again."
         case .unknown:
-            return "An unknown error occurred"
+            return "An unexpected error occurred. Please try again."
         }
     }
 }

@@ -273,9 +273,14 @@ struct VenueCardView: View {
         
         // Reset animation state after spring animation completes
         // Spring animation duration: response (0.3s) * dampingFraction (0.6) ≈ 0.4s
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 400_000_000) // 0.4 seconds
-            isAnimating = false
+        Task { @MainActor [weak appState] in
+            guard appState != nil else { return }
+            do {
+                try await Task.sleep(nanoseconds: 400_000_000) // 0.4 seconds
+                isAnimating = false
+            } catch {
+                // Task cancelled, view likely dismissed - safe to ignore
+            }
         }
     }
     

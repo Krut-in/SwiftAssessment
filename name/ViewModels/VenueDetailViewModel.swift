@@ -166,9 +166,13 @@ class VenueDetailViewModel: ObservableObject {
                 }
                 
                 // Clear success message after 2 seconds
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                await MainActor.run {
-                    self.successMessage = nil
+                Task { @MainActor in
+                    do {
+                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                        self.successMessage = nil
+                    } catch {
+                        // Task cancelled - safe to ignore
+                    }
                 }
             }
             

@@ -27,7 +27,7 @@ struct ContentView: View {
     // MARK: - Properties
     
     @State private var selectedTab = 0
-    @StateObject private var appState = AppState.shared
+    @ObservedObject private var appState = AppState.shared
     
     // MARK: - Body
     

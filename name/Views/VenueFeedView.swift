@@ -35,7 +35,7 @@ struct VenueFeedView: View {
     // MARK: - Properties
     
     @StateObject private var viewModel = VenueFeedViewModel()
-    @StateObject private var appState = AppState.shared
+    @ObservedObject private var appState = AppState.shared
     
     // MARK: - Computed Properties
     

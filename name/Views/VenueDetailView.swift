@@ -42,8 +42,9 @@ struct VenueDetailView: View {
     
     let venueId: String
     @StateObject private var viewModel: VenueDetailViewModel
-    @StateObject private var appState = AppState.shared
+    @ObservedObject private var appState = AppState.shared
     @Environment(\.dismiss) private var dismiss
+    @State private var isButtonPressed = false
     
     // MARK: - Initialization
     
@@ -129,8 +130,24 @@ struct VenueDetailView: View {
                         
                         // Interest Button
                         Button {
+                            // Haptic feedback
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                            impactFeedback.impactOccurred()
+                            
+                            // Animation
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                isButtonPressed = true
+                            }
+                            
                             Task {
                                 await viewModel.toggleInterest()
+                                
+                                // Reset animation state
+                                await MainActor.run {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                        isButtonPressed = false
+                                    }
+                                }
                             }
                         } label: {
                             HStack(spacing: 8) {
@@ -150,6 +167,7 @@ struct VenueDetailView: View {
                             .background(viewModel.isInterested ? Color.red : Color.blue)
                             .cornerRadius(12)
                         }
+                        .scaleEffect(isButtonPressed ? 0.95 : 1.0)
                         .disabled(viewModel.isTogglingInterest)
                         .padding(.vertical, 8)
                         

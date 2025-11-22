@@ -1,48 +1,88 @@
-# Quick Start Guide - Luna Backend
+# Luna Backend API - Quick Start Guide
 
-## Start Server
+## 🚀 Quick Start
+
+### Installation
+
+1. **Create and activate virtual environment:**
+   ```bash
+   cd Luna-Backend
+   python3 -m venv venv
+   source venv/bin/activate  # On macOS/Linux
+   # OR on Windows: venv\Scripts\activate
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Start Server
 ```bash
-cd Luna-Backend
-source venv/bin/activate
 uvicorn main:app --reload --port 8000
 ```
 
-## Test All Endpoints
+**Server will be available at:**
+- API Root: http://localhost:8000
+- Interactive Docs: http://localhost:8000/docs
+- OpenAPI JSON: http://localhost:8000/openapi.json
+
+## 🧪 Test All Endpoints
+
+### Test Script
+For automated testing, run:
 ```bash
-# 1. List all venues
-curl http://127.0.0.1:8000/venues | python3 -m json.tool
+./test_booking_agent.sh
+```
 
-# 2. Get venue detail
-curl http://127.0.0.1:8000/venues/venue_1 | python3 -m json.tool
+### Manual Testing
 
-# 3. Express interest
-curl -X POST http://127.0.0.1:8000/interests \
+```bash
+# 1. List all venues (GET /venues)
+curl http://localhost:8000/venues | python3 -m json.tool
+
+# 2. Get venue detail (GET /venues/{id})
+curl http://localhost:8000/venues/venue_1 | python3 -m json.tool
+
+# 3. Express interest (POST /interests)
+curl -X POST http://localhost:8000/interests \
   -H "Content-Type: application/json" \
   -d '{"user_id":"user_1","venue_id":"venue_5"}' | python3 -m json.tool
 
-# 4. Get user profile
-curl http://127.0.0.1:8000/users/user_1 | python3 -m json.tool
+# 4. Get user profile (GET /users/{id})
+curl http://localhost:8000/users/user_1 | python3 -m json.tool
 
-# 5. Get recommendations
-curl "http://127.0.0.1:8000/recommendations?user_id=user_1" | python3 -m json.tool
+# 5. Get recommendations (GET /recommendations?user_id={id})
+curl "http://localhost:8000/recommendations?user_id=user_1" | python3 -m json.tool
 ```
 
-## API Documentation
-Browse interactive docs at: http://127.0.0.1:8000/docs
+## 📖 API Documentation
 
-## Project Structure
+**Interactive Swagger UI:**
+Browse interactive docs at: http://localhost:8000/docs
+
+**Features:**
+- Try out endpoints directly in browser
+- View request/response schemas
+- See all available endpoints
+- Automatic validation
+
+## 📂 Project Structure
 ```
 Luna-Backend/
 ├── main.py              # All 5 API endpoints + recommendation logic
 ├── models.py            # Pydantic models (User, Venue, Interest)
 ├── data.py              # Synthetic test data (8 users, 12 venues)
-├── agent.py             # Mock booking agent (Phase 1C)
-├── requirements.txt     # Python dependencies
+├── agent.py             # Mock booking agent
+├── requirements.txt     # Python dependencies (FastAPI, Uvicorn, Pydantic)
+├── setup.sh             # Automated setup script
+├── test_booking_agent.sh # Booking agent test script
 ├── API_TESTING.md       # Complete testing guide
-└── PHASE_1B_SUMMARY.md  # Implementation verification
+└── README.md            # This file
 ```
 
-## Booking Agent (Phase 1C)
+## 🤖 Booking Agent
+
 The mock booking agent automatically triggers when 3+ users express interest in a venue.
 
 ### Agent Behavior
@@ -77,9 +117,67 @@ This is a **mock implementation** for demonstration purposes. In production, thi
 - Real-time notifications to users when reservations are confirmed
 - Payment processing and confirmation emails
 
-## Phase 1C Status: ✅ COMPLETE
-- Mock booking agent implemented in `agent.py`
-- Agent integrated with POST `/interests` endpoint
-- Threshold-based triggering (3+ users)
-- Reservation code generation working
-- All 5 endpoints still functioning correctly
+---
+
+## ✅ Implementation Status
+
+**All Features Complete:**
+- ✅ 5 REST API endpoints implemented
+- ✅ Recommendation engine with 3-factor scoring
+- ✅ Mock booking agent with threshold triggering
+- ✅ Pydantic validation on all inputs
+- ✅ Comprehensive error handling
+- ✅ Auto-generated API documentation
+- ✅ CORS enabled for web integration
+
+**Production-Ready Features:**
+- ✅ User-friendly error messages
+- ✅ Input validation with Pydantic
+- ✅ Request/response logging
+- ✅ Proper HTTP status codes
+- ✅ Type hints throughout
+
+---
+
+## 🔧 Dependencies
+
+```txt
+fastapi==0.104.1        # Modern web framework with auto docs
+uvicorn[standard]==0.24.0  # ASGI server with hot reload
+pydantic==2.5.0         # Data validation and serialization
+```
+
+**Install:**
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 📊 Data Models
+
+**Users (8 total):**
+- Alex Chen, Jordan Kim, Sam Rivera, Taylor Lee
+- Morgan Park, Casey Wu, Riley Brooks, Quinn Davis
+
+**Venues (12 total):**
+- 3 Coffee Shops (Blue Bottle, Stumptown, La Colombe)
+- 3 Restaurants (The Spotted Pig, Carbone, ABC Kitchen)
+- 3 Bars (Dead Rabbit, Employees Only, Angel's Share)
+- 3 Museums (MoMA, Met Museum, Guggenheim)
+
+**Interests:**
+- 25+ pre-seeded interest relationships
+- Dynamically updated via API
+
+---
+
+## 🚀 Next Steps
+
+1. **Test the API**: Visit http://localhost:8000/docs
+2. **Run iOS App**: Open `name.xcodeproj` and press Cmd+R
+3. **Test Integration**: Express interest from iOS app, watch backend logs
+
+---
+
+**Built with Python 3.10+ • FastAPI • Pydantic**
