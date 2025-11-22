@@ -72,6 +72,7 @@ class ProfileViewModel: ObservableObject {
     
     @Published var user: User?
     @Published var interestedVenues: [Venue] = []
+    @Published var actionItems: [ActionItem] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     
@@ -111,6 +112,7 @@ class ProfileViewModel: ObservableObject {
             await MainActor.run {
                 self.user = response.user
                 self.interestedVenues = response.interested_venues
+                self.actionItems = response.action_items
                 self.isLoading = false
             }
         } catch let error as APIError {
@@ -122,6 +124,40 @@ class ProfileViewModel: ObservableObject {
             await MainActor.run {
                 self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
                 self.isLoading = false
+            }
+        }
+    }
+    
+    /// Completes an action item
+    /// - Parameter itemId: The ID of the action item to complete
+    func completeActionItem(_ itemId: String) async {
+        do {
+            _ = try await apiService.completeActionItem(itemId: itemId, userId: appState.currentUserId)
+            
+            // Remove from local list
+            await MainActor.run {
+                actionItems.removeAll { $0.id == itemId }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to complete action item: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    /// Dismisses an action item
+    /// - Parameter itemId: The ID of the action item to dismiss
+    func dismissActionItem(_ itemId: String) async {
+        do {
+            _ = try await apiService.dismissActionItem(itemId: itemId, userId: appState.currentUserId)
+            
+            // Remove from local list
+            await MainActor.run {
+                actionItems.removeAll { $0.id == itemId }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to dismiss action item: \(error.localizedDescription)"
             }
         }
     }

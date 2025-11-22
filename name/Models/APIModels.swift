@@ -56,6 +56,7 @@ struct VenueDetailResponse: Codable {
 struct UserProfileResponse: Codable {
     let user: User
     let interested_venues: [Venue]
+    let action_items: [ActionItem]
 }
 
 /// Response from GET /recommendations endpoint
@@ -81,17 +82,51 @@ struct RecommendationItem: Codable, Identifiable, Hashable {
 /// Response from POST /interests endpoint
 struct InterestResponse: Codable {
     let success: Bool
-    let agent_triggered: Bool?
     let message: String?
-    let reservation_code: String?
-    let booking_cancelled: Bool?
+    let action_item: ActionItemResponse?
     
     enum CodingKeys: String, CodingKey {
         case success
-        case agent_triggered
         case message
-        case reservation_code
-        case booking_cancelled
+        case action_item
+    }
+}
+
+/// Action item response nested in InterestResponse
+struct ActionItemResponse: Codable {
+    let action_item_created: Bool
+    let action_item_id: String?
+    let description: String?
+    let action_code: String?
+    let interested_user_ids: [String]?
+}
+
+// MARK: - Action Item Models
+
+/// Full action item model from GET /users/{user_id} endpoint
+struct ActionItem: Codable, Identifiable {
+    let id: String
+    let venue_id: String
+    let interested_user_ids: [String]
+    let action_type: String // "book_venue" or "visit_venue"
+    let action_code: String
+    let description: String
+    let threshold_met: Bool
+    let status: String // "pending", "completed", "dismissed"
+    let created_at: String
+    let venue: Venue? // Optional venue object for convenience
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case venue_id
+        case interested_user_ids
+        case action_type
+        case action_code
+        case description
+        case threshold_met
+        case status
+        case created_at
+        case venue
     }
 }
 
@@ -140,4 +175,15 @@ struct BookingDetail: Codable {
 struct InterestRequest: Codable {
     let user_id: String
     let venue_id: String
+}
+
+/// Request body for POST /action-items/{item_id}/complete endpoint
+struct CompleteActionItemRequest: Codable {
+    let user_id: String
+}
+
+/// Generic success response
+struct SuccessResponse: Codable {
+    let success: Bool
+    let message: String
 }

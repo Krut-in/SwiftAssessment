@@ -95,6 +95,8 @@ protocol APIServiceProtocol {
     func fetchRecommendations(userId: String) async throws -> [RecommendationItem]
     func fetchUserBookings(userId: String) async throws -> [BookingItem]
     func fetchVenueBooking(venueId: String) async throws -> VenueBookingResponse
+    func completeActionItem(itemId: String, userId: String) async throws -> SuccessResponse
+    func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse
 }
 
 // MARK: - API Service Implementation
@@ -204,6 +206,40 @@ class APIService: ObservableObject, APIServiceProtocol {
     func fetchVenueBooking(venueId: String) async throws -> VenueBookingResponse {
         let endpoint = "/venues/\(venueId)/booking"
         return try await performRequest(endpoint: endpoint, method: "GET")
+    }
+    
+    /// Completes an action item
+    /// - Parameters:
+    ///   - itemId: The unique identifier of the action item
+    ///   - userId: The unique identifier of the user
+    /// - Returns: Success response
+    /// - Throws: APIError if request fails
+    func completeActionItem(itemId: String, userId: String) async throws -> SuccessResponse {
+        let endpoint = "/action-items/\(itemId)/complete"
+        let requestBody = CompleteActionItemRequest(user_id: userId)
+        return try await performRequest(endpoint: endpoint, method: "POST", body: requestBody)
+    }
+    
+    /// Dismisses an action item
+    /// - Parameters:
+    ///   - itemId: The unique identifier of the action item
+    ///   - userId: The unique identifier of the user
+    /// - Returns: Success response
+    /// - Throws: APIError if request fails
+    func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse {
+        let endpoint = "/action-items/\(itemId)?user_id=\(userId)"
+        var request = URLRequest(url: URL(string: "\(baseURL)\(endpoint)")!)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.serverError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 500, message: "Failed to dismiss action item")
+        }
+        
+        return try decoder.decode(SuccessResponse.self, from: data)
     }
     
     // MARK: - Private Helper Methods

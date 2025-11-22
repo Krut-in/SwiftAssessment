@@ -280,15 +280,6 @@ struct VenueDetailView: View {
         .task {
             await viewModel.loadVenueDetail()
         }
-        .alert("🎉 Booking Created!", isPresented: $appState.showBookingAlert) {
-            Button("Awesome!") {
-                appState.clearBookingAlert()
-            }
-        } message: {
-            if let message = appState.bookingAgentMessage {
-                Text(message)
-            }
-        }
     }
     
     // MARK: - Helper Methods

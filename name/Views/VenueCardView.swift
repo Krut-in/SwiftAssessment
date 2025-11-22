@@ -241,11 +241,9 @@ struct VenueCardView: View {
                 
                 // Check if operation was successful
                 if response.success {
-                    // If agent was triggered or toggle succeeded, notify parent to refresh
-                    if response.agent_triggered == true {
-                        await MainActor.run {
-                            onInterestToggled?()
-                        }
+                    // Notify parent to refresh on successful toggle
+                    await MainActor.run {
+                        onInterestToggled?()
                     }
                 } else {
                     // API returned success: false, revert optimistic update

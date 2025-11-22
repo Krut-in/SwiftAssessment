@@ -45,9 +45,9 @@ class AppState: ObservableObject {
     /// Set of venue IDs that the current user is interested in
     @Published var interestedVenueIds: Set<String> = []
     
-    /// Alert message for booking agent responses
-    @Published var bookingAgentMessage: String?
-    @Published var showBookingAlert = false
+    /// Action item toast state
+    @Published var pendingActionItem: ActionItem?
+    @Published var showActionItemToast = false
     
     // MARK: - Private Properties
     
@@ -98,12 +98,29 @@ class AppState: ObservableObject {
         do {
             let response = try await apiService.expressInterest(userId: currentUserId, venueId: venueId)
             
-            // Handle booking agent response
-            if let agentTriggered = response.agent_triggered, agentTriggered,
-               let message = response.message {
-                // Update on main actor without delay - UI updates are safe here
-                self.bookingAgentMessage = message
-                self.showBookingAlert = true
+            // Handle action item response
+            if let actionItemData = response.action_item,
+               actionItemData.action_item_created,
+               let itemId = actionItemData.action_item_id,
+               let description = actionItemData.description,
+               let actionCode = actionItemData.action_code,
+               let interestedUserIds = actionItemData.interested_user_ids {
+                
+                // Create ActionItem for toast display
+                let actionItem = ActionItem(
+                    id: itemId,
+                    venue_id: venueId,
+                    interested_user_ids: interestedUserIds,
+                    action_type: "book_venue", // Will be provided by backend
+                    action_code: actionCode,
+                    description: description,
+                    threshold_met: true,
+                    status: "pending",
+                    created_at: ISO8601DateFormatter().string(from: Date()),
+                    venue: nil
+                )
+                
+                showActionItemNotification(actionItem)
             }
             
             return response
@@ -118,16 +135,17 @@ class AppState: ObservableObject {
         }
     }
     
+    /// Shows action item notification toast
+    /// - Parameter actionItem: The action item to display
+    func showActionItemNotification(_ actionItem: ActionItem) {
+        pendingActionItem = actionItem
+        showActionItemToast = true
+    }
+    
     /// Checks if user is interested in a venue
     /// - Parameter venueId: The venue ID to check
     /// - Returns: True if user is interested, false otherwise
     func isInterested(in venueId: String) -> Bool {
         interestedVenueIds.contains(venueId)
-    }
-    
-    /// Clears the booking agent alert
-    func clearBookingAlert() {
-        showBookingAlert = false
-        bookingAgentMessage = nil
     }
 }

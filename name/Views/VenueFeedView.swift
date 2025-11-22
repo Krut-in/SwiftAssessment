@@ -78,15 +78,6 @@ struct VenueFeedView: View {
                     Text(errorMessage)
                 }
             }
-            .alert("🎉 Booking Created!", isPresented: $appState.showBookingAlert) {
-                Button("Awesome!") {
-                    appState.clearBookingAlert()
-                }
-            } message: {
-                if let message = appState.bookingAgentMessage {
-                    Text(message)
-                }
-            }
         }
     }
     

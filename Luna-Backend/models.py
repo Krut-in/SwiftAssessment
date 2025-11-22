@@ -87,24 +87,30 @@ class Interest(BaseModel):
     timestamp: datetime
 
 
-class Booking(BaseModel):
+class ActionItem(BaseModel):
     """
-    Booking model representing an automated reservation for a venue.
+    ActionItem model representing a trackable action when venue interest threshold is met.
     
-    Created when interest threshold is met (3+ users interested).
-    Tracks reservation details and status to prevent duplicate bookings.
+    Created when interest threshold is met (4+ users interested).
+    Users can track these items and take manual action (booking, visiting, etc).
     
     Attributes:
-        id: Unique identifier for the booking
-        venue_id: ID of the venue being booked
-        user_ids: List of user IDs included in the booking
-        reservation_code: Mock reservation code (e.g., "LUNA-venue_1-1234")
-        created_at: Timestamp when booking was created
-        status: Current booking status ("active", "cancelled")
+        id: Unique identifier for the action item
+        venue_id: ID of the venue this action item is for
+        interested_user_ids: List of user IDs who expressed interest
+        action_type: Type of action ("book_venue" or "visit_venue")
+        action_code: Unique code for reference (e.g., "LUNA-venue_1-1234")
+        description: Human-readable description (e.g., "3 friends interested - coordinate plans!")
+        threshold_met: Whether the interest threshold was met
+        status: Current status ("pending", "completed", "dismissed")
+        created_at: Timestamp when action item was created
     """
     id: str
     venue_id: str
-    user_ids: List[str]
-    reservation_code: str
+    interested_user_ids: List[str]
+    action_type: str  # "book_venue" or "visit_venue"
+    action_code: str
+    description: str
+    threshold_met: bool
+    status: str  # "pending", "completed", "dismissed"
     created_at: datetime
-    status: str  # "active" or "cancelled"

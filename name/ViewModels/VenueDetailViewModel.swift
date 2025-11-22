@@ -159,20 +159,18 @@ class VenueDetailViewModel: ObservableObject {
             // Reload venue details to get updated interested users count
             await loadVenueDetail()
             
-            // Show success feedback if not booking agent message
-            if response.agent_triggered != true {
-                await MainActor.run {
-                    self.successMessage = response.message ?? "Interest updated successfully"
-                }
-                
-                // Clear success message after 2 seconds
-                Task { @MainActor in
-                    do {
-                        try await Task.sleep(nanoseconds: 2_000_000_000)
-                        self.successMessage = nil
-                    } catch {
-                        // Task cancelled - safe to ignore
-                    }
+            // Show success feedback (action item notification handled by AppState)
+            await MainActor.run {
+                self.successMessage = response.message ?? "Interest updated successfully"
+            }
+            
+            // Clear success message after 2 seconds
+            Task { @MainActor in
+                do {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    self.successMessage = nil
+                } catch {
+                    // Task cancelled - safe to ignore
                 }
             }
             

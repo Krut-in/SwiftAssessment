@@ -145,6 +145,46 @@ struct ProfileView: View {
                             }
                             .padding(.top, 20)
                             
+                            // Action Items Section
+                            if !viewModel.actionItems.isEmpty {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    HStack {
+                                        Text("Action Items")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                        
+                                        Spacer()
+                                        
+                                        Text("\(viewModel.actionItems.count)")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.blue)
+                                            .clipShape(Capsule())
+                                    }
+                                    .padding(.horizontal)
+                                    
+                                    ForEach(viewModel.actionItems) { item in
+                                        ActionItemCard(
+                                            actionItem: item,
+                                            onComplete: {
+                                                Task {
+                                                    await viewModel.completeActionItem(item.id)
+                                                }
+                                            },
+                                            onDismiss: {
+                                                Task {
+                                                    await viewModel.dismissActionItem(item.id)
+                                                }
+                                            }
+                                        )
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
+                            
                             // Interested Venues Grid
                             if !viewModel.interestedVenues.isEmpty {
                                 VStack(alignment: .leading, spacing: 16) {
@@ -211,6 +251,133 @@ struct ProfileView: View {
                     Text(errorMessage)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Action Item Card
+
+struct ActionItemCard: View {
+    let actionItem: ActionItem
+    let onComplete: () -> Void
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                // Venue Image
+                if let venue = actionItem.venue {
+                    AsyncImage(url: URL(string: venue.image)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 60, height: 60)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        default:
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: 60, height: 60)
+                                .overlay {
+                                    Image(systemName: "photo")
+                                        .foregroundColor(.gray)
+                                }
+                        }
+                    }
+                    
+                    // Venue Info
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(venue.name)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text(venue.category)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.2.fill")
+                                .font(.caption)
+                            Text("\(actionItem.interested_user_ids.count) interested")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.blue)
+                    }
+                    
+                    Spacer()
+                }
+            }
+            
+            // Description
+            Text(actionItem.description)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            // Action Code
+            Text(actionItem.action_code)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.blue)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.blue.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            
+            // Timestamp
+            Text(relativeTime(from: actionItem.created_at))
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            // Action Buttons
+            HStack(spacing: 12) {
+                Button(action: onComplete) {
+                    Text("Mark Done")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                
+                Button(action: onDismiss) {
+                    Text("Dismiss")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.gray.opacity(0.2))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+    }
+    
+    private func relativeTime(from dateString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        guard let date = formatter.date(from: dateString) else {
+            return "Recently"
+        }
+        
+        let now = Date()
+        let interval = now.timeIntervalSince(date)
+        
+        let hours = Int(interval / 3600)
+        let days = Int(interval / 86400)
+        
+        if days > 0 {
+            return "Created \(days)d ago"
+        } else if hours > 0 {
+            return "Created \(hours)h ago"
+        } else {
+            return "Created recently"
         }
     }
 }
