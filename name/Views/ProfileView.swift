@@ -4,6 +4,40 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  User profile view displaying user information and their saved venues.
+//  Shows user avatar, bio, interests, and a grid of interested venues.
+//  
+//  KEY FEATURES:
+//  - User profile header with avatar, name, and stats
+//  - Interest tags with custom styling
+//  - Grid layout for saved venues (2 columns)
+//  - Pull-to-refresh support
+//  - Empty state for users with no saved venues
+//  - Navigation to venue details from grid
+//  
+//  LAYOUT:
+//  - ScrollView with VStack for vertical layout
+//  - LazyVGrid for efficient grid rendering
+//  - Flexible grid items adapt to screen width
+//  - Proper spacing and padding for visual hierarchy
+//  
+//  STATE MANAGEMENT:
+//  - ProfileViewModel manages user data and venues
+//  - Reloads on view appear to reflect latest changes
+//  - Error handling with alerts
+//  
+//  UX PATTERNS:
+//  - Loading state during initial fetch
+//  - Error state with retry button
+//  - Empty state guides users to discover venues
+//  - Smooth transitions between states
+//  
+//  PERFORMANCE:
+//  - LazyVGrid only renders visible items
+//  - AsyncImage for progressive image loading
+//  - Pull-to-refresh for manual updates
+//
 
 import SwiftUI
 
@@ -161,6 +195,12 @@ struct ProfileView: View {
             .navigationBarTitleDisplayMode(.large)
             .task {
                 await viewModel.loadProfile()
+            }
+            .onAppear {
+                // Reload profile when view appears to show latest interests
+                Task {
+                    await viewModel.loadProfile()
+                }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil && viewModel.user != nil)) {
                 Button("OK") {

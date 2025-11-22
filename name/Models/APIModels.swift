@@ -4,6 +4,38 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  Data transfer objects (DTOs) for API communication with the Luna backend.
+//  Defines request and response models for all API endpoints.
+//  
+//  MODEL ORGANIZATION:
+//  - Response Wrappers: Top-level API response structures
+//  - Request Models: Payload structures for POST requests
+//  - Nested Models: Referenced from other model files (User, Venue)
+//  
+//  API ENDPOINT MAPPING:
+//  - VenuesResponse: GET /venues
+//  - VenueDetailResponse: GET /venues/{id}
+//  - UserProfileResponse: GET /users/{id}
+//  - RecommendationsResponse: GET /recommendations
+//  - InterestRequest: POST /interests (request)
+//  - InterestResponse: POST /interests (response)
+//  
+//  CODABLE CONFORMANCE:
+//  - All models conform to Codable for JSON serialization
+//  - Snake_case property names match backend convention
+//  - Optional fields handle missing backend data gracefully
+//  
+//  SPECIAL HANDLING:
+//  - RecommendationItem conforms to Identifiable for ForEach loops
+//  - Hashable conformance enables Set operations
+//  - Computed id property derived from nested venue.id
+//  
+//  VALIDATION:
+//  - Models validate automatically via Codable
+//  - Decoding errors propagate to APIError.decodingError
+//  - Type safety enforced at compile time
+//
 
 import Foundation
 

@@ -4,6 +4,29 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  Main discovery feed displaying all available venues in a scrollable list.
+//  Implements pull-to-refresh, error handling, and empty state patterns.
+//  
+//  KEY FEATURES:
+//  - Lazy loading with LazyVStack for performance
+//  - Pull-to-refresh gesture support
+//  - Comprehensive error states with retry functionality
+//  - Empty state messaging for better UX
+//  - Loading indicators during data fetch
+//  - Navigation to venue detail views
+//  
+//  STATE MANAGEMENT:
+//  - Uses VenueFeedViewModel for data and loading states
+//  - Automatically loads venues on view appear (.task modifier)
+//  - Error messages displayed in alerts when venues already loaded
+//  
+//  UX PATTERNS:
+//  - Shows full-screen loading only on initial load
+//  - Inline errors after first load to preserve list
+//  - Clear error messages with retry actions
+//  - Smooth transitions between loading/error/content states
+//
 
 import SwiftUI
 

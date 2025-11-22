@@ -4,6 +4,62 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  ViewModel managing state and business logic for venue detail view.
+//  Handles venue detail fetching, interest toggling, and state synchronization.
+//  
+//  RESPONSIBILITIES:
+//  - Fetch detailed venue information from API
+//  - Display list of interested users
+//  - Handle interest toggle with loading states
+//  - Sync interest state with global AppState
+//  - Show success/error messages for user actions
+//  - Reload venue data after interest changes
+//  
+//  ARCHITECTURE:
+//  - MVVM pattern with ObservableObject
+//  - @MainActor for thread-safe UI updates
+//  - Combine observers for AppState synchronization
+//  - Protocol-based dependency injection for testing
+//  
+//  STATE PROPERTIES:
+//  - venue: Full venue details (optional until loaded)
+//  - interestedUsers: Array of users interested in venue
+//  - isLoading: Main loading state for initial fetch
+//  - isTogglingInterest: Loading state for interest button
+//  - isInterested: Current user's interest status
+//  - errorMessage: Current error to display
+//  - successMessage: Success feedback (auto-dismissing)
+//  
+//  STATE SYNCHRONIZATION:
+//  Uses Combine to observe AppState.interestedVenueIds:
+//  - Automatically updates isInterested when global state changes
+//  - Ensures consistency across app (e.g., after interest from feed)
+//  - Weak self prevents retain cycles in observer closures
+//  
+//  INTEREST TOGGLE FLOW:
+//  1. User taps interest button
+//  2. isTogglingInterest = true (disables button)
+//  3. Call AppState.toggleInterest (handles API)
+//  4. Reload venue detail (updates interested users count)
+//  5. Show success message (if not booking agent)
+//  6. Auto-dismiss success after 2 seconds
+//  7. isTogglingInterest = false (enables button)
+//  
+//  ERROR RECOVERY:
+//  - API errors displayed in errorMessage
+//  - Can retry via loadVenueDetail()
+//  - Interest toggle errors revert optimistic updates
+//  
+//  LOADING PREVENTION:
+//  Guard clause prevents multiple simultaneous detail loads.
+//  Interest toggle is separately protected by isTogglingInterest.
+//  
+//  THREAD SAFETY:
+//  - All state updates on main thread via @MainActor
+//  - Combine observers use DispatchQueue.main
+//  - No manual thread management required
+//
 
 import Foundation
 import Combine
@@ -59,6 +115,9 @@ class VenueDetailViewModel: ObservableObject {
     
     /// Loads venue details from the API
     func loadVenueDetail() async {
+        // Prevent multiple simultaneous loads
+        guard !isLoading else { return }
+        
         isLoading = true
         errorMessage = nil
         

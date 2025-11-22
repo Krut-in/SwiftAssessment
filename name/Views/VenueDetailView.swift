@@ -4,6 +4,35 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  Detailed view for a single venue showing full information and interested users.
+//  Implements custom navigation with overlay back button and interest toggling.
+//  
+//  KEY FEATURES:
+//  - Hero image with overlay back button (custom navigation)
+//  - Interest button with loading states and animations
+//  - List of interested users with avatars
+//  - Category-based color coding for visual hierarchy
+//  - Success/error message handling
+//  - Automatic booking agent alert propagation
+//  
+//  DESIGN PATTERNS:
+//  - Custom back button (navigationBarBackButtonHidden)
+//  - AsyncImage for lazy image loading
+//  - Optimistic UI updates via AppState
+//  - Observable state synchronization with ViewModel
+//  
+//  STATE MANAGEMENT:
+//  - VenueDetailViewModel manages venue data and loading
+//  - AppState handles interest toggle and alert state
+//  - Interest state synced via Combine observers
+//  
+//  UX CONSIDERATIONS:
+//  - Disabled button during interest toggle prevents double-taps
+//  - Success messages auto-dismiss after 2 seconds
+//  - Booking agent messages shown in global alert (ContentView)
+//  - Reload venue detail after interest toggle to update count
+//
 
 import SwiftUI
 

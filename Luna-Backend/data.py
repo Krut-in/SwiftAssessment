@@ -1,14 +1,48 @@
-"""
+"""  
 Synthetic data generator for Luna venue discovery application.
 
 This module provides test data including users, venues, and interest relationships.
+In production, this would be replaced with a database layer (PostgreSQL, MongoDB, etc.).
+
+DATA STRUCTURE:
+    - 8 users with diverse interests (coffee, food, bars, culture)
+    - 12 venues across 4 categories (Coffee, Restaurant, Bar, Cultural)
+    - 25+ interest relationships creating realistic social graph
+
+KEY SCENARIOS:
+    - Blue Bottle Coffee (venue_1) has 4+ users interested (triggers booking agent)
+    - Users have overlapping interests to demonstrate social features
+    - Mix of popular and less popular venues for recommendation testing
+
+DATA INITIALIZATION:
+    - Data is initialized on module import
+    - Returns dictionaries for O(1) lookup by ID
+    - Interest list maintains temporal ordering
+
+PRODUCTION MIGRATION:
+    To migrate to a database:
+    1. Replace dictionaries with database queries
+    2. Add proper ORM models (SQLAlchemy, Django ORM, etc.)
+    3. Implement database transactions for interest toggling
+    4. Add indexes on user_id and venue_id for performance
+    5. Consider caching layer (Redis) for frequently accessed data
+
+DATA CONSISTENCY:
+    - All user IDs follow pattern: user_{n}
+    - All venue IDs follow pattern: venue_{n}
+    - Timestamps use datetime objects for proper sorting
+    - Avatar URLs use pravatar.cc for consistent avatars
+    - Venue images use picsum.photos with unique seeds
+
+TESTING DATA:
+    - user_1 (Alex Chen): Coffee enthusiast - use for coffee venue tests
+    - venue_1 (Blue Bottle): Has 4 interests - use for booking agent tests
+    - Overlapping interests enable friend recommendation testing
 """
 
 from datetime import datetime
 from typing import Dict, List
 from models import User, Venue, Interest
-
-
 def initialize_data() -> tuple[Dict[str, User], Dict[str, Venue], List[Interest]]:
     """
     Initialize and return synthetic test data for the application.

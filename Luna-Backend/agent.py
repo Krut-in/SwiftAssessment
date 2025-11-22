@@ -1,14 +1,45 @@
-"""
+"""  
 Mock booking agent for Luna venue discovery application.
 
 This module simulates automated reservation booking when interest threshold is met.
 In production, this would integrate with OpenTable/Resy APIs.
+
+ARCHITECTURE:
+    - Triggered automatically when >= 3 users express interest in a venue
+    - Returns mock reservation codes for demonstration
+    - Designed to be replaced with real booking API integration
+
+PRODUCTION INTEGRATION:
+    To integrate with real booking services:
+    1. Replace booking_agent function with API calls
+    2. Add authentication for booking service APIs
+    3. Implement retry logic for failed bookings
+    4. Add webhook handlers for booking confirmations
+    5. Store reservation details in database
+
+RECOMMENDED APIS:
+    - OpenTable: https://www.opentable.com/developers
+    - Resy: https://resy.com/api
+    - Yelp Reservations: https://www.yelp.com/developers
+
+THRESHOLD CONFIGURATION:
+    - Current: 3 users (configurable)
+    - Consider making this venue-specific in production
+    - Could vary based on venue capacity or day/time
+
+ERROR HANDLING:
+    - Currently fails silently (returns agent_triggered=False)
+    - Production should log failures and notify admins
+    - Consider queuing failed bookings for retry
+
+EXAMPLE USAGE:
+    result = booking_agent("venue_1", "Blue Bottle Coffee", 3)
+    if result["agent_triggered"]:
+        print(f"Reservation code: {result['reservation_code']}")
 """
 
 import random
 from typing import Dict
-
-
 def booking_agent(venue_id: str, venue_name: str, user_count: int) -> Dict:
     """
     Simulates automated booking when interest threshold is reached.

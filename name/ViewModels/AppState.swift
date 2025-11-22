@@ -4,6 +4,27 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  Centralized application state manager for global user data and interests.
+//  Implements the singleton pattern to ensure consistent state across all views.
+//  Handles interest toggling with optimistic updates and automatic rollback on errors.
+//  
+//  KEY RESPONSIBILITIES:
+//  - Manages current user ID and their interested venue IDs
+//  - Provides interest toggling with network synchronization
+//  - Handles booking agent alert state for global notifications
+//  - Loads user interests on app initialization
+//  
+//  ARCHITECTURE NOTES:
+//  - Singleton pattern ensures single source of truth
+//  - @MainActor ensures all UI updates happen on main thread
+//  - Uses optimistic updates for better UX (updates UI before API confirmation)
+//  - Automatically reverts changes if API calls fail
+//  
+//  THREAD SAFETY:
+//  - All methods are @MainActor to ensure thread-safe UI updates
+//  - Async/await pattern used for all network operations
+//
 
 import Foundation
 import Combine
@@ -77,15 +98,12 @@ class AppState: ObservableObject {
         do {
             let response = try await apiService.expressInterest(userId: currentUserId, venueId: venueId)
             
-            // Handle booking agent response - delay to avoid view update conflicts
+            // Handle booking agent response
             if let agentTriggered = response.agent_triggered, agentTriggered,
                let message = response.message {
-                // Use Task with slight delay to ensure we're not in a view update cycle
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
-                    self.bookingAgentMessage = message
-                    self.showBookingAlert = true
-                }
+                // Update on main actor without delay - UI updates are safe here
+                self.bookingAgentMessage = message
+                self.showBookingAlert = true
             }
             
             return response

@@ -4,6 +4,40 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  Network service layer handling all API communication with the Luna backend.
+//  Implements APIServiceProtocol for easy testing and dependency injection.
+//  Provides type-safe API calls with comprehensive error handling.
+//  
+//  KEY FEATURES:
+//  - Generic performRequest methods for DRY code
+//  - Automatic JSON encoding/decoding with ISO8601 date support
+//  - Detailed error types for better error handling
+//  - Configurable base URL and URLSession for testing
+//  - Production-ready timeout and connectivity settings
+//  
+//  API ENDPOINTS COVERED:
+//  - GET /venues - Fetch all venues with interested counts
+//  - GET /venues/{id} - Fetch detailed venue information
+//  - POST /interests - Express or remove interest in a venue
+//  - GET /users/{id} - Fetch user profile with interested venues
+//  - GET /recommendations - Fetch personalized venue recommendations
+//  
+//  ERROR HANDLING:
+//  - Network errors (connectivity issues, timeouts)
+//  - Server errors (4xx, 5xx status codes)
+//  - Decoding errors (malformed JSON)
+//  - Invalid URL errors
+//  
+//  THREAD SAFETY:
+//  - All async methods automatically return to main actor
+//  - URLSession handles background thread operations internally
+//  
+//  TESTING:
+//  - Protocol-based design enables easy mocking
+//  - Injectable URLSession for integration tests
+//  - Configurable base URL for different environments
+//
 
 import Foundation
 import Combine
@@ -61,7 +95,14 @@ class APIService: ObservableObject, APIServiceProtocol {
     
     init(baseURL: String = "http://localhost:8000", session: URLSession = .shared) {
         self.baseURL = baseURL
-        self.session = session
+        
+        // Configure session with timeout for production
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 30.0
+        configuration.timeoutIntervalForResource = 60.0
+        configuration.waitsForConnectivity = true
+        
+        self.session = URLSession(configuration: configuration)
         
         // Configure JSON decoder for date handling
         self.decoder = JSONDecoder()

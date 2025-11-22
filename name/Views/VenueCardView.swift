@@ -4,6 +4,45 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  Reusable card component displaying venue preview information in the feed.
+//  Implements inline interest toggling with optimistic updates and animations.
+//  
+//  KEY FEATURES:
+//  - Aspect ratio constrained venue image (4:3)
+//  - Category badge with color coding
+//  - Inline heart button for interest toggling
+//  - Animated heart interaction (scale effect)
+//  - Optimistic interest count updates
+//  - Error recovery with count reversion
+//  
+//  DESIGN DECISIONS:
+//  - Card shadow for depth perception
+//  - AsyncImage with loading states
+//  - Proper fallback for failed image loads
+//  - Category colors match detail view for consistency
+//  
+//  INTERACTION:
+//  - Heart button tap triggers animation
+//  - Optimistic update shows immediate feedback
+//  - Reverts on API error for accuracy
+//  - Booking agent responses preserve optimistic update
+//  
+//  STATE MANAGEMENT:
+//  - Local count state for optimistic updates
+//  - AppState for persistent interest tracking
+//  - Computed property for interest status
+//  
+//  PERFORMANCE:
+//  - Lightweight view for list scrolling
+//  - AsyncImage prevents blocking main thread
+//  - Animation isolated to button scale only
+//  
+//  ACCESSIBILITY:
+//  - Proper button labels for VoiceOver
+//  - Semantic image presentation
+//  - Clear visual hierarchy
+//
 
 import SwiftUI
 
@@ -138,7 +177,13 @@ struct VenueCardView: View {
         // Toggle interest via AppState
         Task {
             do {
-                try await appState.toggleInterest(venueId: venue.id)
+                let response = try await appState.toggleInterest(venueId: venue.id)
+                
+                // Don't revert if booking agent was triggered - the actual count is now different
+                // The count will be updated when user navigates to detail view
+                if response.agent_triggered == true {
+                    // Keep the optimistic update for better UX
+                }
             } catch {
                 // Revert count on error
                 if wasInterested {

@@ -1,14 +1,40 @@
-"""
+"""  
 Data models for Luna venue discovery application.
 
 This module defines the core Pydantic models for users, venues, and interests.
+All models use Pydantic for automatic validation and serialization.
+
+MODELS:
+    User: Represents a user with profile information and interests
+    Venue: Represents a physical location/venue users can discover
+    Interest: Represents a many-to-many relationship between users and venues
+
+VALIDATION:
+    - All models use Pydantic's BaseModel for automatic validation
+    - String fields are automatically validated for type
+    - Datetime fields ensure proper timestamp handling
+    - List fields validate element types
+
+SERIALIZATION:
+    - Models automatically serialize to JSON for API responses
+    - Snake_case naming matches Python conventions
+    - DateTime fields serialize to ISO8601 format
+
+USAGE:
+    from models import User, Venue, Interest
+    
+    user = User(
+        id="user_1",
+        name="John Doe",
+        avatar="https://example.com/avatar.jpg",
+        bio="Coffee lover",
+        interests=["coffee", "food"]
+    )
 """
 
 from datetime import datetime
 from typing import List
 from pydantic import BaseModel
-
-
 class User(BaseModel):
     """
     User model representing a person using the venue discovery app.

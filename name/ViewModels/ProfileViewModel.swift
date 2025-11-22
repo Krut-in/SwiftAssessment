@@ -4,6 +4,63 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  ViewModel managing state and business logic for user profile view.
+//  Handles user profile fetching and interested venues display.
+//  
+//  RESPONSIBILITIES:
+//  - Fetch current user's profile from API
+//  - Load user's interested venues with details
+//  - Manage loading and error states
+//  - Provide refresh functionality
+//  - Handle API errors gracefully
+//  
+//  ARCHITECTURE:
+//  - MVVM pattern with ObservableObject
+//  - @MainActor for thread-safe UI updates
+//  - Protocol-based APIService for testing
+//  - Uses AppState for current user ID
+//  
+//  STATE PROPERTIES:
+//  - user: Current user's profile data (optional until loaded)
+//  - interestedVenues: Array of venues user is interested in
+//  - isLoading: Loading indicator state
+//  - errorMessage: Current error message to display
+//  
+//  STATE MANAGEMENT STRATEGY:
+//  ProfileViewModel previously had an observer that caused infinite loops.
+//  Current approach: Manual reload on view appear.
+//  
+//  REMOVED: Automatic reload on AppState.interestedVenueIds change
+//  REASON: Caused infinite reload loop
+//  SOLUTION: View calls loadProfile() on appear
+//  
+//  This ensures profile is up-to-date without the infinite loop:
+//  - User expresses interest -> AppState updates
+//  - User navigates to profile -> View appears
+//  - Profile reloads with latest data
+//  
+//  WHY INFINITE LOOP OCCURRED:
+//  1. User expresses interest
+//  2. AppState.interestedVenueIds changes
+//  3. ProfileViewModel observer triggers loadProfile()
+//  4. loadProfile() updates interestedVenues
+//  5. This can trigger observer again (cycle)
+//  
+//  ERROR HANDLING:
+//  - APIError: Known errors with descriptive messages
+//  - Generic errors: Fallback error messages
+//  - Non-blocking: Errors don't prevent app usage
+//  
+//  THREAD SAFETY:
+//  - @MainActor ensures main thread updates
+//  - Async/await for clean asynchronous code
+//  - Combine observers use main scheduler
+//  
+//  LOADING PREVENTION:
+//  No guard needed here as View controls when to load.
+//  Profile refresh is user-initiated via pull-to-refresh.
+//
 
 import Foundation
 import Combine
@@ -37,16 +94,8 @@ class ProfileViewModel: ObservableObject {
     // MARK: - Private Methods
     
     private func setupObservers() {
-        // Reload profile when interested venues change
-        appState.$interestedVenueIds
-            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
-            .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    guard let self = self else { return }
-                    await self.loadProfile()
-                }
-            }
-            .store(in: &cancellables)
+        // Observer removed to prevent infinite reload loop
+        // Profile will refresh on manual pull-to-refresh or when view appears
     }
     
     // MARK: - Public Methods

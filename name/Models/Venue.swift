@@ -4,6 +4,41 @@
 //
 //  Created by Krutin Rathod on 21/11/25.
 //
+//  DESCRIPTION:
+//  Domain models for venue data used throughout the iOS application.
+//  Provides two representations: full detail and list item summary.
+//  
+//  MODELS:
+//  - Venue: Complete venue information for detail views
+//  - VenueListItem: Lightweight summary for list/grid views
+//  
+//  DESIGN RATIONALE:
+//  Two separate models optimize for different use cases:
+//  - VenueListItem: Minimal data for feed performance
+//  - Venue: Full details loaded on demand
+//  
+//  PROTOCOL CONFORMANCE:
+//  - Codable: JSON serialization for API communication
+//  - Identifiable: Required for SwiftUI ForEach loops
+//  - Hashable: Enables Set operations and Equatable checks
+//  
+//  FIELD DETAILS:
+//  - id: Unique identifier (e.g., "venue_1")
+//  - name: Display name of the venue
+//  - category: Type classification (Coffee Shop, Restaurant, etc.)
+//  - description: Full text description (Venue only)
+//  - image: URL string for venue photo
+//  - address: Physical location (Venue only)
+//  - interested_count: Number of users interested (VenueListItem only)
+//  
+//  USAGE:
+//  - VenueListItem: Feed, search results, profile grids
+//  - Venue: Detail view, booking confirmations
+//  
+//  SNAKE_CASE PROPERTIES:
+//  Properties use snake_case to match backend API format.
+//  CodingKeys explicitly map Swift names to JSON keys.
+//
 
 import Foundation
 

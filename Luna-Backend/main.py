@@ -1,4 +1,4 @@
-"""
+"""  
 Luna venue discovery backend API.
 
 This module implements all 5 API endpoints for the venue discovery application:
@@ -9,17 +9,23 @@ This module implements all 5 API endpoints for the venue discovery application:
 - GET /recommendations - Get personalized venue recommendations
 """
 
+import logging
 from datetime import datetime
 from typing import List, Dict, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 # Import data from data.py
 from data import users_dict, venues_dict, interests_list
 from agent import booking_agent
 
-
+# Configure logging for production
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="Luna Venue Discovery API",
@@ -42,6 +48,18 @@ class InterestRequest(BaseModel):
     """Request model for expressing interest in a venue."""
     user_id: str
     venue_id: str
+    
+    @validator('user_id', 'venue_id')
+    def validate_ids(cls, v):
+        """Validate that IDs are not empty and contain only valid characters."""
+        if not v or not v.strip():
+            raise ValueError('ID cannot be empty')
+        if len(v) > 100:
+            raise ValueError('ID too long (max 100 characters)')
+        # Basic sanitization - alphanumeric and underscore only
+        if not all(c.isalnum() or c == '_' for c in v):
+            raise ValueError('ID contains invalid characters')
+        return v.strip()
 
 
 class InterestResponse(BaseModel):
@@ -107,19 +125,21 @@ def get_user_interested_venues(user_id: str) -> List[Dict]:
         if interest.user_id == user_id
     ]
     
-    return [
-        {
-            "id": venue.id,
-            "name": venue.name,
-            "category": venue.category,
-            "description": venue.description,
-            "image": venue.image,
-            "address": venue.address,
-            "interested_count": get_interested_count(venue.id)
-        }
-        for venue_id in interested_venue_ids
-        if (venue := venues_dict.get(venue_id))
-    ]
+    result = []
+    for venue_id in interested_venue_ids:
+        venue = venues_dict.get(venue_id)
+        if venue:
+            result.append({
+                "id": venue.id,
+                "name": venue.name,
+                "category": venue.category,
+                "description": venue.description,
+                "image": venue.image,
+                "address": venue.address,
+                "interested_count": get_interested_count(venue.id)
+            })
+    
+    return result
 
 
 def count_friends_interested(user_id: str, venue_id: str) -> int:
@@ -214,6 +234,8 @@ def get_venues():
     Returns:
         JSON object with venues array containing id, name, category, image, and interested_count
     """
+    logger.info("Fetching all venues")
+    
     venues = [
         {
             "id": venue.id,
@@ -225,6 +247,7 @@ def get_venues():
         for venue in venues_dict.values()
     ]
     
+    logger.info(f"Returning {len(venues)} venues")
     return {"venues": venues}
 
 
@@ -242,11 +265,15 @@ def get_venue_detail(venue_id: str):
     Raises:
         HTTPException: 404 if venue not found
     """
+    logger.info(f"Fetching venue detail for venue_id: {venue_id}")
+    
     if venue_id not in venues_dict:
+        logger.warning(f"Venue not found: {venue_id}")
         raise HTTPException(status_code=404, detail=f"Venue with id '{venue_id}' not found")
     
     venue = venues_dict[venue_id]
     interested_users = get_interested_users(venue_id)
+    interested_count = get_interested_count(venue_id)
     
     return {
         "venue": {
@@ -255,8 +282,7 @@ def get_venue_detail(venue_id: str):
             "category": venue.category,
             "description": venue.description,
             "image": venue.image,
-            "address": venue.address,
-            "interested_count": get_interested_count(venue_id)
+            "address": venue.address
         },
         "interested_users": interested_users
     }
@@ -280,11 +306,15 @@ def express_interest(request: InterestRequest) -> InterestResponse:
         HTTPException: 404 if user or venue not found
         HTTPException: 400 for invalid requests
     """
+    logger.info(f"Express interest request: user={request.user_id}, venue={request.venue_id}")
+    
     # Validate user and venue exist
     if request.user_id not in users_dict:
+        logger.warning(f"User not found: {request.user_id}")
         raise HTTPException(status_code=404, detail=f"User with id '{request.user_id}' not found")
     
     if request.venue_id not in venues_dict:
+        logger.warning(f"Venue not found: {request.venue_id}")
         raise HTTPException(status_code=404, detail=f"Venue with id '{request.venue_id}' not found")
     
     # Check if interest already exists
@@ -297,6 +327,7 @@ def express_interest(request: InterestRequest) -> InterestResponse:
     if existing_interest is not None:
         # Remove interest (toggle off)
         interests_list.pop(existing_interest)
+        logger.info(f"Interest removed: user={request.user_id}, venue={request.venue_id}")
         return InterestResponse(
             success=True,
             agent_triggered=False,
@@ -311,21 +342,33 @@ def express_interest(request: InterestRequest) -> InterestResponse:
             timestamp=datetime.now()
         )
         interests_list.append(new_interest)
+        logger.info(f"Interest added: user={request.user_id}, venue={request.venue_id}")
         
         # Check if booking agent should be triggered
         interested_count = get_interested_count(request.venue_id)
         venue_name = venues_dict[request.venue_id].name
-        agent_response = booking_agent(request.venue_id, venue_name, interested_count)
         
-        # Build response based on agent result
-        if agent_response["agent_triggered"]:
-            return InterestResponse(
-                success=True,
-                agent_triggered=True,
-                message=agent_response["message"],
-                reservation_code=agent_response["reservation_code"]
-            )
-        else:
+        try:
+            agent_response = booking_agent(request.venue_id, venue_name, interested_count)
+            
+            # Build response based on agent result
+            if agent_response["agent_triggered"]:
+                logger.info(f"Booking agent triggered for venue={request.venue_id}, count={interested_count}")
+                return InterestResponse(
+                    success=True,
+                    agent_triggered=True,
+                    message=agent_response["message"],
+                    reservation_code=agent_response["reservation_code"]
+                )
+            else:
+                return InterestResponse(
+                    success=True,
+                    agent_triggered=False,
+                    message="Interest recorded successfully"
+                )
+        except Exception as e:
+            logger.error(f"Booking agent error: {str(e)}")
+            # Still return success since interest was recorded
             return InterestResponse(
                 success=True,
                 agent_triggered=False,
@@ -347,7 +390,10 @@ def get_user_profile(user_id: str):
     Raises:
         HTTPException: 404 if user not found
     """
+    logger.info(f"Fetching user profile for user_id: {user_id}")
+    
     if user_id not in users_dict:
+        logger.warning(f"User not found: {user_id}")
         raise HTTPException(status_code=404, detail=f"User with id '{user_id}' not found")
     
     user = users_dict[user_id]
@@ -384,7 +430,10 @@ def get_recommendations(user_id: str):
     Raises:
         HTTPException: 404 if user not found
     """
+    logger.info(f"Fetching recommendations for user_id: {user_id}")
+    
     if user_id not in users_dict:
+        logger.warning(f"User not found: {user_id}")
         raise HTTPException(status_code=404, detail=f"User with id '{user_id}' not found")
     
     # Get venues user is already interested in
@@ -415,4 +464,5 @@ def get_recommendations(user_id: str):
     # Sort by score descending
     recommendations.sort(key=lambda x: x["score"], reverse=True)
     
+    logger.info(f"Returning {len(recommendations)} recommendations")
     return {"recommendations": recommendations}
