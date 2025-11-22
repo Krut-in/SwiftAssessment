@@ -12,6 +12,7 @@ struct ContentView: View {
     // MARK: - Properties
     
     @State private var selectedTab = 0
+    @StateObject private var appState = AppState.shared
     
     // MARK: - Body
     
@@ -30,6 +31,15 @@ struct ContentView: View {
                     Label("Profile", systemImage: "person.fill")
                 }
                 .tag(1)
+        }
+        .alert("Booking Confirmed! 🎉", isPresented: $appState.showBookingAlert) {
+            Button("OK") {
+                appState.clearBookingAlert()
+            }
+        } message: {
+            if let message = appState.bookingAgentMessage {
+                Text(message)
+            }
         }
     }
 }

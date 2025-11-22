@@ -12,7 +12,22 @@ struct VenueCardView: View {
     // MARK: - Properties
     
     let venue: VenueListItem
-    @State private var isHeartPressed = false
+    @StateObject private var appState = AppState.shared
+    @State private var isAnimating = false
+    @State private var localInterestedCount: Int
+    
+    // MARK: - Initialization
+    
+    init(venue: VenueListItem) {
+        self.venue = venue
+        _localInterestedCount = State(initialValue: venue.interested_count)
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var isInterested: Bool {
+        appState.isInterested(in: venue.id)
+    }
     
     // MARK: - Body
     
@@ -69,17 +84,16 @@ struct VenueCardView: View {
                     
                     Spacer()
                     
-                    // Heart Button (placeholder for now)
+                    // Heart Button
                     Button {
-                        // Action will be implemented in Phase 3
-                        isHeartPressed.toggle()
+                        handleInterestTap()
                     } label: {
-                        Image(systemName: isHeartPressed ? "heart.fill" : "heart")
+                        Image(systemName: isInterested ? "heart.fill" : "heart")
                             .font(.system(size: 20))
-                            .foregroundColor(isHeartPressed ? .red : .gray)
+                            .foregroundColor(isInterested ? .red : .gray)
                     }
-                    .scaleEffect(isHeartPressed ? 1.1 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isHeartPressed)
+                    .scaleEffect(isAnimating ? 1.2 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAnimating)
                 }
                 .padding(.top, 12)
                 
@@ -93,7 +107,7 @@ struct VenueCardView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "person.2")
                         .font(.caption)
-                    Text("\(venue.interested_count) people interested")
+                    Text("\(localInterestedCount) people interested")
                         .font(.subheadline)
                 }
                 .foregroundColor(.secondary)
@@ -107,6 +121,40 @@ struct VenueCardView: View {
     }
     
     // MARK: - Helper Methods
+    
+    /// Handles interest button tap with animation
+    private func handleInterestTap() {
+        // Trigger animation
+        isAnimating = true
+        
+        // Optimistically update the count
+        let wasInterested = isInterested
+        if wasInterested {
+            localInterestedCount = max(0, localInterestedCount - 1)
+        } else {
+            localInterestedCount += 1
+        }
+        
+        // Toggle interest via AppState
+        Task {
+            do {
+                try await appState.toggleInterest(venueId: venue.id)
+            } catch {
+                // Revert count on error
+                if wasInterested {
+                    localInterestedCount += 1
+                } else {
+                    localInterestedCount = max(0, localInterestedCount - 1)
+                }
+                print("Failed to toggle interest: \(error.localizedDescription)")
+            }
+        }
+        
+        // Reset animation after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            isAnimating = false
+        }
+    }
     
     /// Returns a color based on venue category
     private func categoryColor(for category: String) -> Color {

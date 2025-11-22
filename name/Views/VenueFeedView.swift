@@ -65,8 +65,11 @@ struct VenueFeedView: View {
                     ScrollView {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.venues) { venue in
-                                VenueCardView(venue: venue)
-                                    .padding(.horizontal)
+                                NavigationLink(destination: VenueDetailView(venueId: venue.id)) {
+                                    VenueCardView(venue: venue)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .padding(.horizontal)
                             }
                         }
                         .padding(.vertical)

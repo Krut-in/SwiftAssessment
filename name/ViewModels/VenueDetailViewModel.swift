@@ -18,18 +18,41 @@ class VenueDetailViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var isInterested = false
+    @Published var isTogglingInterest = false
+    @Published var successMessage: String?
     
     // MARK: - Private Properties
     
     private let apiService: APIServiceProtocol
     private let venueId: String
+    private let appState: AppState
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
     
-    init(venueId: String, apiService: APIServiceProtocol = APIService()) {
+    init(venueId: String, apiService: APIServiceProtocol = APIService(), appState: AppState = .shared) {
         self.venueId = venueId
         self.apiService = apiService
+        self.appState = appState
+        
+        // Observe app state for interest changes
+        setupObservers()
+    }
+    
+    // MARK: - Private Methods
+    
+    private func setupObservers() {
+        // Update isInterested when app state changes
+        appState.$interestedVenueIds
+            .map { [weak self] venueIds in
+                guard let self = self else { return false }
+                return venueIds.contains(self.venueId)
+            }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isInterested in
+                self?.isInterested = isInterested
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods
@@ -46,6 +69,8 @@ class VenueDetailViewModel: ObservableObject {
             await MainActor.run {
                 self.venue = response.venue
                 self.interestedUsers = response.interested_users
+                // Check if current user is in interested users
+                self.isInterested = self.appState.isInterested(in: self.venueId)
                 self.isLoading = false
             }
         } catch let error as APIError {
@@ -64,10 +89,44 @@ class VenueDetailViewModel: ObservableObject {
     }
     
     /// Toggles user interest in the venue
-    /// - Parameter userId: The ID of the current user
-    func toggleInterest(userId: String) async {
-        // This will be implemented in Phase 3
-        // Placeholder for now
+    func toggleInterest() async {
+        isTogglingInterest = true
+        errorMessage = nil
+        successMessage = nil
+        
+        do {
+            let response = try await appState.toggleInterest(venueId: venueId)
+            
+            // Reload venue details to get updated interested users count
+            await loadVenueDetail()
+            
+            // Show success feedback if not booking agent message
+            if response.agent_triggered != true {
+                await MainActor.run {
+                    self.successMessage = response.message ?? "Interest updated successfully"
+                }
+                
+                // Clear success message after 2 seconds
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                await MainActor.run {
+                    self.successMessage = nil
+                }
+            }
+            
+            await MainActor.run {
+                self.isTogglingInterest = false
+            }
+        } catch let error as APIError {
+            await MainActor.run {
+                self.errorMessage = error.errorDescription
+                self.isTogglingInterest = false
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to update interest: \(error.localizedDescription)"
+                self.isTogglingInterest = false
+            }
+        }
     }
     
     /// Clears the current error message

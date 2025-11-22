@@ -831,3 +831,73 @@ Before proceeding to Phase 3, verify:
   - Original task Track 1 requires "social growth features" and "invite friends" - not implemented in MVP
   - Focus is on demonstrating **integration quality** and **end-to-end functionality** over feature completeness
   - README must clearly document which features from original task are implemented vs. simplified vs. deferred
+
+### Some more rules realted to swiftui
+
+### SwiftUI Rules (iOS 26-Ready, Modern, Clean)
+
+#### General Principles
+
+Always assume the latest Swift, SwiftUI, and Xcode.
+
+Prefer declarative patterns, pure functions, and immutable data.
+
+Embrace Swift macros, Observation framework, and new SwiftUI navigation APIs.
+
+#### Architecture
+
+MVVM as the baseline; modularize features.
+
+Keep ViewModels lightweight: no heavy logic or networking.
+
+Use protocol abstraction for services and environment dependencies.
+
+#### Code Style & Naming
+
+PascalCase for types, camelCase for properties/functions.
+
+Methods describe actions (“loadVenues”), booleans start with is/has/should.
+
+Prefer composition over inheritance; use protocol extensions for shared behavior.
+
+Avoid magic numbers/strings—define constants.
+
+#### State & Data Flow
+
+Use @Observable (iOS 26), @State, @StateObject, and @Environment effectively.
+
+Use async/await + Swift Concurrency end-to-end.
+
+UI & Layout
+
+SwiftUI-first; use UIKit only for special components.
+
+Use container views (e.g., ScrollView, LazyVGrid) efficiently.
+
+Prefer GeometryReader minimally; use new layout protocols.
+
+Always support dynamic type, and system UI patterns.
+
+#### Performance
+
+Minimize body recomputation using small, focused Views.
+
+Extract complex views into subviews; avoid large monolithic screens.
+
+Use @MainActor appropriately and avoid blocking main thread.
+
+Lazy-load images/data; debounce heavy operations.
+
+Cache expensive computations using Swift caches or actors.
+
+#### Modern Swift Features
+
+Use macros (@Observable, @Model, @CasePath) wherever beneficial.
+
+Prefer Swift Concurrency over Combine.
+
+Use result builders, opaque types, and generics for cleaner APIs.
+
+Prefer immutable let values; minimize var usage.
+
+Use actors for shared mutable state.

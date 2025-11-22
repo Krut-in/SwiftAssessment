@@ -12,8 +12,8 @@ struct User: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let avatar: String
-    let bio: String
-    let interests: [String]
+    let bio: String?
+    let interests: [String]?
     
     /// Custom coding keys to match backend API JSON format
     enum CodingKeys: String, CodingKey {
@@ -22,5 +22,14 @@ struct User: Codable, Identifiable, Hashable {
         case avatar
         case bio
         case interests
+    }
+    
+    /// Helper computed properties with default values
+    var displayBio: String {
+        bio ?? ""
+    }
+    
+    var displayInterests: [String] {
+        interests ?? []
     }
 }

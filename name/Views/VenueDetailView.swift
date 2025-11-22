@@ -13,6 +13,7 @@ struct VenueDetailView: View {
     
     let venueId: String
     @StateObject private var viewModel: VenueDetailViewModel
+    @StateObject private var appState = AppState.shared
     @Environment(\.dismiss) private var dismiss
     
     // MARK: - Initialization
@@ -28,37 +29,57 @@ struct VenueDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if let venue = viewModel.venue {
-                    // Hero Image
-                    AsyncImage(url: URL(string: venue.image)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 300)
-                                .clipped()
-                        default:
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(height: 300)
-                                .overlay {
-                                    ProgressView()
-                                }
+                    // Hero Image with overlay back button
+                    ZStack(alignment: .topLeading) {
+                        AsyncImage(url: URL(string: venue.image)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(height: 300)
+                                    .clipped()
+                            default:
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(height: 300)
+                                    .overlay {
+                                        ProgressView()
+                                    }
+                            }
                         }
+                        
+                        // Back button overlay
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.primary)
+                                .frame(width: 36, height: 36)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                        }
+                        .padding([.leading, .top], 16)
                     }
                     
                     // Content
                     VStack(alignment: .leading, spacing: 16) {
                         // Venue Name
                         Text(venue.name)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
+                            .font(.system(size: 28, weight: .bold))
                         
-                        // Category and Address
-                        VStack(alignment: .leading, spacing: 8) {
+                        // Category Badge and Address
+                        HStack(spacing: 12) {
                             Text(venue.category)
-                                .font(.headline)
-                                .foregroundColor(.blue)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(categoryColor(for: venue.category))
+                                .clipShape(Capsule())
                             
                             HStack(spacing: 4) {
                                 Image(systemName: "mappin.circle")
@@ -77,33 +98,47 @@ struct VenueDetailView: View {
                         }
                         .foregroundColor(.secondary)
                         
-                        // Interest Button (placeholder for Phase 3)
+                        // Interest Button
                         Button {
-                            // Action will be implemented in Phase 3
+                            Task {
+                                await viewModel.toggleInterest()
+                            }
                         } label: {
-                            Text("I'm Interested")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(12)
+                            HStack(spacing: 8) {
+                                if viewModel.isTogglingInterest {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: viewModel.isInterested ? "heart.fill" : "heart")
+                                    Text(viewModel.isInterested ? "Interested" : "I'm Interested")
+                                }
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(viewModel.isInterested ? Color.red : Color.blue)
+                            .cornerRadius(12)
                         }
+                        .disabled(viewModel.isTogglingInterest)
                         .padding(.vertical, 8)
                         
-                        // About Section
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("About")
-                                .font(.title3)
-                                .fontWeight(.bold)
-                            
-                            Text(venue.description)
-                                .font(.body)
-                                .foregroundColor(.secondary)
+                        // Success Message
+                        if let successMessage = viewModel.successMessage {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text(successMessage)
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                            }
+                            .padding()
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(8)
                         }
-                        .padding(.top, 8)
                         
-                        // Interested Users Section
+                        // People Who Want to Go Section
                         if !viewModel.interestedUsers.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("People Who Want to Go")
@@ -134,7 +169,7 @@ struct VenueDetailView: View {
                                                 }
                                                 
                                                 Text(user.name)
-                                                    .font(.caption)
+                                                    .font(.system(size: 12))
                                                     .lineLimit(1)
                                             }
                                             .frame(width: 70)
@@ -144,13 +179,28 @@ struct VenueDetailView: View {
                             }
                             .padding(.top, 8)
                         }
+                        
+                        // About Section
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("About")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                            
+                            Text(venue.description)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 8)
                     }
                     .padding()
                 } else if viewModel.isLoading {
                     // Loading State
-                    ProgressView("Loading venue details...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding()
+                    VStack(spacing: 16) {
+                        ProgressView("Loading venue details...")
+                            .progressViewStyle(CircularProgressViewStyle())
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 400)
                 } else if let errorMessage = viewModel.errorMessage {
                     // Error State
                     VStack(spacing: 16) {
@@ -174,12 +224,31 @@ struct VenueDetailView: View {
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
+                    .frame(height: 400)
                 }
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .task {
             await viewModel.loadVenueDetail()
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func categoryColor(for category: String) -> Color {
+        switch category.lowercased() {
+        case "coffee shop", "coffee":
+            return Color.brown
+        case "restaurant", "food":
+            return Color.orange
+        case "bar":
+            return Color.purple
+        case "cultural", "museum":
+            return Color.blue
+        default:
+            return Color.gray
         }
     }
 }
@@ -187,7 +256,7 @@ struct VenueDetailView: View {
 // MARK: - Preview
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         VenueDetailView(venueId: "venue_1")
     }
 }
