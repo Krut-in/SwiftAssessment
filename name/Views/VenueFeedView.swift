@@ -163,16 +163,6 @@ struct VenueFeedView: View {
             
             await viewModel.refresh()
         }
-        .overlay(alignment: .top) {
-            // Last updated timestamp
-            if let _ = viewModel.lastUpdated {
-                Text("Last updated: \(viewModel.lastUpdatedText)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 8)
-                    .opacity(viewModel.isLoading ? 0 : 1)
-            }
-        }
     }
     
     private var recommendationsSection: some View {
