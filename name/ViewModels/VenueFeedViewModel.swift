@@ -87,7 +87,8 @@ class VenueFeedViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let fetchedVenues = try await apiService.fetchVenues()
+            // Pass user_1 as the current user to get distance calculations
+            let fetchedVenues = try await apiService.fetchVenues(userId: "user_1")
             
             // Update UI on main thread
             await MainActor.run {

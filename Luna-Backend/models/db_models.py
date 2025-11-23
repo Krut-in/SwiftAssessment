@@ -51,6 +51,8 @@ class UserDB(Base):
         name: Full name of the user
         avatar: URL to user's avatar image
         bio: Short biography or description
+        latitude: Geographic latitude coordinate (-90 to 90)
+        longitude: Geographic longitude coordinate (-180 to 180)
         created_at: Timestamp when user was created
     """
     __tablename__ = "users"
@@ -59,6 +61,8 @@ class UserDB(Base):
     name = Column(String(255), nullable=False)
     avatar = Column(String(500), nullable=False)
     bio = Column(Text, nullable=False)
+    latitude = Column(Float, nullable=False)  # Valid range: -90 to 90
+    longitude = Column(Float, nullable=False)  # Valid range: -180 to 180
     created_at = Column(DateTime, default=lambda: datetime.now(), nullable=False)
     
     # Relationships

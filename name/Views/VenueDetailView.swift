@@ -35,6 +35,7 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct VenueDetailView: View {
     
@@ -141,6 +142,34 @@ struct VenueDetailView: View {
                                     .font(.subheadline)
                             }
                             .foregroundColor(.secondary)
+                        }
+                        
+                        // Distance Badge
+                        if let distance = venue.distance_km {
+                            HStack(spacing: 8) {
+                                DistanceBadge(distance_km: distance)
+                                
+                                // Get Directions Button
+                                if let latitude = venue.latitude, let longitude = venue.longitude {
+                                    Button {
+                                        openInMaps(latitude: latitude, longitude: longitude, name: venue.name)
+                                    } label: {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "arrow.triangle.turn.up.right.diamond")
+                                                .font(.system(size: 12, weight: .medium))
+                                            Text("Get Directions")
+                                                .font(.system(size: 12, weight: .medium))
+                                        }
+                                        .foregroundColor(.blue)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .fill(Color.blue.opacity(0.15))
+                                        )
+                                    }
+                                }
+                            }
                         }
                         
                         // Interested Count
@@ -311,6 +340,18 @@ struct VenueDetailView: View {
     }
     
     // MARK: - Helper Methods
+    
+    /// Opens Apple Maps with directions to the venue
+    /// - Parameters:
+    ///   - latitude: Venue latitude
+    ///   - longitude: Venue longitude
+    ///   - name: Venue name for the map marker
+    private func openInMaps(latitude: Double, longitude: Double, name: String) {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        mapItem.name = name
+        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
+    }
     
     private func categoryColor(for category: String) -> Color {
         switch category.lowercased() {

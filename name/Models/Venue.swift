@@ -50,6 +50,9 @@ struct Venue: Codable, Identifiable, Hashable {
     let description: String
     let image: String
     let address: String
+    let latitude: Double?
+    let longitude: Double?
+    let distance_km: Double?
     
     /// Custom coding keys to match backend API JSON format
     enum CodingKeys: String, CodingKey {
@@ -59,6 +62,9 @@ struct Venue: Codable, Identifiable, Hashable {
         case description
         case image
         case address
+        case latitude
+        case longitude
+        case distance_km
     }
 }
 
@@ -69,6 +75,7 @@ struct VenueListItem: Codable, Identifiable, Hashable {
     let category: String
     let image: String
     let interested_count: Int
+    let distance_km: Double?
     
     /// Custom coding keys to match backend API JSON format
     enum CodingKeys: String, CodingKey {
@@ -77,5 +84,6 @@ struct VenueListItem: Codable, Identifiable, Hashable {
         case category
         case image
         case interested_count
+        case distance_km
     }
 }

@@ -88,7 +88,7 @@ enum APIError: LocalizedError {
 // MARK: - API Service Protocol
 
 protocol APIServiceProtocol {
-    func fetchVenues() async throws -> [VenueListItem]
+    func fetchVenues(userId: String?) async throws -> [VenueListItem]
     func fetchVenueDetail(venueId: String) async throws -> VenueDetailResponse
     func expressInterest(userId: String, venueId: String) async throws -> InterestResponse
     func fetchUserProfile(userId: String) async throws -> UserProfileResponse
@@ -135,10 +135,14 @@ class APIService: ObservableObject, APIServiceProtocol {
     // MARK: - Public API Methods
     
     /// Fetches list of all venues
-    /// - Returns: Array of venue list items with interested counts
+    /// - Parameter userId: Optional user ID to calculate distances
+    /// - Returns: Array of venue list items with interested counts and distances
     /// - Throws: APIError if request fails
-    func fetchVenues() async throws -> [VenueListItem] {
-        let endpoint = "/venues"
+    func fetchVenues(userId: String? = nil) async throws -> [VenueListItem] {
+        var endpoint = "/venues"
+        if let userId = userId {
+            endpoint += "?user_id=\(userId)"
+        }
         let response: VenuesResponse = try await performRequest(endpoint: endpoint, method: "GET")
         return response.venues
     }

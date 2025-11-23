@@ -8,12 +8,14 @@ MODELS:
     User: Represents a user with profile information and interests
     Venue: Represents a physical location/venue users can discover
     Interest: Represents a many-to-many relationship between users and venues
+    ActionItem: Represents trackable actions when interest threshold is met
 
 VALIDATION:
     - All models use Pydantic's BaseModel for automatic validation
     - String fields are automatically validated for type
     - Datetime fields ensure proper timestamp handling
     - List fields validate element types
+    - Optional fields allow backward compatibility
 
 SERIALIZATION:
     - Models automatically serialize to JSON for API responses
@@ -33,7 +35,7 @@ USAGE:
 """
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 class User(BaseModel):
     """
@@ -64,6 +66,9 @@ class Venue(BaseModel):
         description: Detailed description of the venue
         image: URL to venue's image
         address: Physical address of the venue
+        latitude: Geographic latitude coordinate (optional)
+        longitude: Geographic longitude coordinate (optional)
+        distance_km: Distance from user in kilometers (optional, only when user_id provided)
     """
     id: str
     name: str
@@ -71,6 +76,9 @@ class Venue(BaseModel):
     description: str
     image: str
     address: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    distance_km: Optional[float] = None
 
 
 class Interest(BaseModel):

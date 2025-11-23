@@ -177,6 +177,11 @@ struct VenueCardView: View {
                 }
                 .padding(.top, 12)
                 
+                // MARK: Distance Badge
+                if venue.distance_km != nil {
+                    DistanceBadge(distance_km: venue.distance_km)
+                }
+                
                 // MARK: Venue Name
                 Text(venue.name)
                     .font(.system(size: 18, weight: .bold))

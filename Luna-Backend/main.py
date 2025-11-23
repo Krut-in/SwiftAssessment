@@ -38,6 +38,7 @@ from models.db_models import UserDB, VenueDB, InterestDB, UserInterestDB, Friend
 from models.api_models import ActionItem
 from seed_data import check_and_seed
 from agent import action_item_agent
+from utils.distance import haversine_distance, calculate_proximity_score
 
 # Configure logging for production
 logging.basicConfig(
@@ -269,17 +270,18 @@ async def count_friends_interested(session, user_id: str, venue_id: str) -> int:
     return result.scalar() or 0
 
 
-async def calculate_recommendation_score(session, user_id: str, venue_id: str) -> tuple[float, str, int, int]:
+async def calculate_recommendation_score(session, user_id: str, venue_id: str) -> tuple[float, str, int, int, Optional[float]]:
     """
-    Calculate recommendation score for a venue based on three factors.
+    Calculate recommendation score for a venue based on four factors.
     
     CRITICAL: Score is calculated based on OTHER users' interests only.
     This ensures the score remains stable when the current user toggles their interest.
     
-    Scoring algorithm:
-    - Factor 1: Popularity (0-3 points) = min(other_users_interested / 3, 3)
-    - Factor 2: Category match (0-4 points) = 4 if venue category matches user interests
-    - Factor 3: Friend interest (0-3 points) = min(friends_interested, 3)
+    Scoring algorithm (out of 10 points total):
+    - Factor 1: Popularity (30% weight) - min(other_users_interested / 3, 1.0) * 3
+    - Factor 2: Category match (25% weight) - 1.0 if match, else 0.0, * 2.5
+    - Factor 3: Friend interest (25% weight) - min(friends_interested / 3, 1.0) * 2.5
+    - Factor 4: Proximity (20% weight) - distance-based score (1.0 to 0.2) * 2
     
     Args:
         session: Database session
@@ -287,17 +289,20 @@ async def calculate_recommendation_score(session, user_id: str, venue_id: str) -
         venue_id: The ID of the venue
         
     Returns:
-        Tuple of (score, reason string, friends_interested_count, total_interested_count)
+        Tuple of (score, reason string, friends_interested_count, total_interested_count, distance_km)
     """
     # Get user and venue
     user = await session.get(UserDB, user_id)
     venue = await session.get(VenueDB, venue_id)
     
     if not user or not venue:
-        return 0.0, "Invalid user or venue", 0, 0
+        return 0.0, "Invalid user or venue", 0, 0, None
     
     score = 0.0
     reasons = []
+    
+    # Calculate distance
+    distance_km = haversine_distance(user.latitude, user.longitude, venue.latitude, venue.longitude)
     
     # Get total interested count (all users)
     total_interested_count = await get_interested_count(session, venue_id)
@@ -317,13 +322,14 @@ async def calculate_recommendation_score(session, user_id: str, venue_id: str) -
     # Get friends interested count
     friends_interested = await count_friends_interested(session, user_id, venue_id)
     
-    # Factor 1: Popularity (0-3 points) - based on OTHER users only
-    popularity_score = min(other_users_interested / 3, 3)
+    # Factor 1: Popularity (30% weight = 3.0 points max)
+    popularity_normalized = min(other_users_interested / 3, 1.0)
+    popularity_score = popularity_normalized * 3.0
     score += popularity_score
     if other_users_interested > 0:
         reasons.append(f"Popular venue")
     
-    # Factor 2: Category match (0-4 points)
+    # Factor 2: Category match (25% weight = 2.5 points max)
     # Get user interests
     result = await session.execute(
         select(UserInterestDB.interest_category)
@@ -332,20 +338,33 @@ async def calculate_recommendation_score(session, user_id: str, venue_id: str) -
     user_interests = [row[0] for row in result.all()]
     
     venue_category_lower = venue.category.lower()
+    category_match = 0.0
     for interest in user_interests:
         if interest.lower() in venue_category_lower or venue_category_lower in interest.lower():
-            score += 4
+            category_match = 1.0
             reasons.append("Matches your interests")
             break
+    category_score = category_match * 2.5
+    score += category_score
     
-    # Factor 3: Friend interest (0-3 points)
-    friend_score = min(friends_interested, 3)
+    # Factor 3: Friend interest (25% weight = 2.5 points max)
+    friend_normalized = min(friends_interested / 3, 1.0)
+    friend_score = friend_normalized * 2.5
     score += friend_score
+    
+    # Factor 4: Proximity (20% weight = 2.0 points max)
+    proximity_score_value = calculate_proximity_score(distance_km)
+    proximity_score = proximity_score_value * 2.0
+    score += proximity_score
+    
+    # Add distance to reason if it's nearby
+    if distance_km <= 2:
+        reasons.append(f"{distance_km} km away")
     
     # Generate reason string
     reason = ", ".join(reasons) if reasons else "New venue to explore"
     
-    return score, reason, friends_interested, total_interested_count
+    return score, reason, friends_interested, total_interested_count, distance_km
 
 
 # API Endpoints
@@ -362,16 +381,29 @@ def root():
 
 
 @app.get("/venues")
-async def get_venues():
+async def get_venues(user_id: Optional[str] = None):
     """
     Get list of all venues with basic information.
     
+    If user_id is provided, calculates distance from user to each venue.
+    
+    Args:
+        user_id: Optional user ID to calculate distances
+    
     Returns:
-        JSON object with venues array containing id, name, category, image, and interested_count
+        JSON object with venues array containing id, name, category, image, interested_count,
+        and optionally distance_km (if user_id provided)
     """
-    logger.info("Fetching all venues")
+    logger.info(f"Fetching all venues (user_id: {user_id})")
     
     async with get_db() as session:
+        # Get user if user_id provided
+        user = None
+        if user_id:
+            user = await session.get(UserDB, user_id)
+            if not user:
+                logger.warning(f"User not found: {user_id}")
+        
         # Get all venues
         result = await session.execute(select(VenueDB))
         venues_db = result.scalars().all()
@@ -379,13 +411,20 @@ async def get_venues():
         venues = []
         for venue in venues_db:
             interested_count = await get_interested_count(session, venue.id)
-            venues.append({
+            venue_data = {
                 "id": venue.id,
                 "name": venue.name,
                 "category": venue.category,
                 "image": venue.image,
                 "interested_count": interested_count
-            })
+            }
+            
+            # Calculate distance if user provided
+            if user:
+                distance_km = haversine_distance(user.latitude, user.longitude, venue.latitude, venue.longitude)
+                venue_data["distance_km"] = distance_km
+            
+            venues.append(venue_data)
         
         logger.info(f"Returning {len(venues)} venues")
         return {"venues": venues}
@@ -688,18 +727,19 @@ async def get_recommendations(user_id: str):
     - Venues are sorted by score only, NOT by already_interested flag
     - This keeps venues in consistent positions regardless of user's interest state
     
-    Recommendations are scored based on:
-    - Popularity (0-3 points) - based on OTHER users interested
-    - Category match with user interests (0-4 points)
-    - Friend interest (0-3 points)
+    Recommendations are scored based on (out of 10 points):
+    - Popularity (30% weight) - based on OTHER users interested
+    - Category match with user interests (25% weight)
+    - Friend interest (25% weight)
+    - Proximity to user location (20% weight)
     
     Includes venues user is already interested in with already_interested flag.
     
     Args:
-        user_id: The ID of the user to get recommendations for
+        user_id: The ID of the user to get recommendations for (REQUIRED)
         
     Returns:
-        JSON object with sorted list of recommendations
+        JSON object with sorted list of recommendations including distance_km
         
     Raises:
         HTTPException: 404 if user not found
@@ -727,7 +767,7 @@ async def get_recommendations(user_id: str):
         # Calculate scores for ALL venues
         recommendations = []
         for venue in venues:
-            score, reason, friends_interested, total_interested = await calculate_recommendation_score(
+            score, reason, friends_interested, total_interested, distance_km = await calculate_recommendation_score(
                 session, user_id, venue.id
             )
             
@@ -742,7 +782,8 @@ async def get_recommendations(user_id: str):
                     "description": venue.description,
                     "image": venue.image,
                     "address": venue.address,
-                    "interested_count": total_interested
+                    "interested_count": total_interested,
+                    "distance_km": distance_km
                 },
                 "score": round(score, 1),
                 "reason": reason,

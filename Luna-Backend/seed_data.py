@@ -67,6 +67,8 @@ async def seed_database(session: AsyncSession) -> None:
             "name": "Alex Chen",
             "avatar": "https://i.pravatar.cc/150?img=1",
             "bio": "Coffee enthusiast",
+            "latitude": 40.7589,  # Times Square
+            "longitude": -73.9851,
             "interests": ["coffee", "food"]
         },
         {
@@ -74,6 +76,8 @@ async def seed_database(session: AsyncSession) -> None:
             "name": "Jordan Kim",
             "avatar": "https://i.pravatar.cc/150?img=2",
             "bio": "Foodie",
+            "latitude": 40.7282,  # East Village
+            "longitude": -73.9942,
             "interests": ["food", "restaurants"]
         },
         {
@@ -81,6 +85,8 @@ async def seed_database(session: AsyncSession) -> None:
             "name": "Sam Rivera",
             "avatar": "https://i.pravatar.cc/150?img=3",
             "bio": "Social butterfly",
+            "latitude": 40.7489,  # Midtown
+            "longitude": -73.9680,
             "interests": ["bars", "social"]
         },
         {
@@ -88,6 +94,8 @@ async def seed_database(session: AsyncSession) -> None:
             "name": "Taylor Lee",
             "avatar": "https://i.pravatar.cc/150?img=4",
             "bio": "Culture seeker",
+            "latitude": 40.7614,  # MoMA area
+            "longitude": -73.9776,
             "interests": ["culture", "museums"]
         },
         {
@@ -95,6 +103,8 @@ async def seed_database(session: AsyncSession) -> None:
             "name": "Morgan Park",
             "avatar": "https://i.pravatar.cc/150?img=5",
             "bio": "Bar enthusiast",
+            "latitude": 40.7267,  # Lower East Side
+            "longitude": -73.9834,
             "interests": ["bars", "nightlife"]
         },
         {
@@ -102,6 +112,8 @@ async def seed_database(session: AsyncSession) -> None:
             "name": "Casey Wu",
             "avatar": "https://i.pravatar.cc/150?img=6",
             "bio": "Brunch fan",
+            "latitude": 40.7431,  # Flatiron
+            "longitude": -73.9897,
             "interests": ["food", "brunch"]
         },
         {
@@ -109,6 +121,8 @@ async def seed_database(session: AsyncSession) -> None:
             "name": "Riley Brooks",
             "avatar": "https://i.pravatar.cc/150?img=7",
             "bio": "Museum goer",
+            "latitude": 40.7794,  # Upper West Side
+            "longitude": -73.9632,
             "interests": ["culture", "art"]
         },
         {
@@ -116,6 +130,8 @@ async def seed_database(session: AsyncSession) -> None:
             "name": "Quinn Davis",
             "avatar": "https://i.pravatar.cc/150?img=8",
             "bio": "Casual diner",
+            "latitude": 40.7060,  # Financial District
+            "longitude": -74.0088,
             "interests": ["food", "casual"]
         }
     ]
