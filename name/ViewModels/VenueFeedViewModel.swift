@@ -6,10 +6,11 @@
 //
 //  DESCRIPTION:
 //  ViewModel managing state and business logic for the venue discovery feed.
-//  Handles venue fetching, loading states, error handling, and pull-to-refresh.
+//  Handles venue fetching, filtering, sorting, loading states, and error handling.
 //  
 //  RESPONSIBILITIES:
-//  - Fetch venue list from API service
+//  - Fetch venue list from API service with filters
+//  - Manage filter state and active filter counts
 //  - Manage loading and error states
 //  - Provide refresh functionality
 //  - Handle API errors with user-friendly messages
@@ -22,12 +23,20 @@
 //  
 //  STATE PROPERTIES:
 //  - venues: Array of venue items to display
+//  - filters: Current filter state
+//  - showFilterSheet: Controls filter sheet presentation
 //  - isLoading: Loading indicator state
 //  - errorMessage: Current error to display (if any)
 //  
 //  PUBLISHED PROPERTIES:
 //  All @Published properties automatically notify views of changes,
 //  triggering SwiftUI view updates when values change.
+//  
+//  FILTER MANAGEMENT:
+//  - filters property holds all filter state
+//  - activeFilterCount computed from filters
+//  - activeSummary provides human-readable filter description
+//  - clearFilters() resets to defaults
 //  
 //  ERROR HANDLING:
 //  Distinguishes between:
@@ -58,10 +67,22 @@ class VenueFeedViewModel: ObservableObject {
     
     @Published var venues: [VenueListItem] = []
     @Published var recommendations: [RecommendationItem] = []
+    @Published var filters = VenueFilters()
+    @Published var showFilterSheet = false
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var selectedCategory: String? = nil
     @Published var lastUpdated: Date? = nil
+    
+    // MARK: - Computed Properties
+    
+    var activeFilterCount: Int {
+        filters.activeFilterCount
+    }
+    
+    var activeSummary: String? {
+        filters.activeSummary
+    }
     
     // MARK: - Private Properties
     
@@ -77,7 +98,7 @@ class VenueFeedViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
-    /// Loads venues from the API
+    /// Loads venues from the API with current filters
     /// Updates venues array, loading state, and error message
     func loadVenues() async {
         // Prevent multiple simultaneous loads
@@ -87,8 +108,8 @@ class VenueFeedViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            // Pass user_1 as the current user to get distance calculations
-            let fetchedVenues = try await apiService.fetchVenues(userId: "user_1")
+            // Pass user_1 as the current user to get distance and friend interest calculations
+            let fetchedVenues = try await apiService.fetchVenues(userId: "user_1", filters: filters)
             
             // Update UI on main thread
             await MainActor.run {
@@ -109,6 +130,17 @@ class VenueFeedViewModel: ObservableObject {
                 self.isLoading = false
             }
         }
+    }
+    
+    /// Applies current filters by reloading venues
+    func applyFilters() async {
+        await loadVenues()
+    }
+    
+    /// Clears all filters and reloads venues
+    func clearFilters() async {
+        filters.reset()
+        await loadVenues()
     }
     
     /// Loads personalized recommendations for the current user

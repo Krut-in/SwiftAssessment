@@ -318,7 +318,8 @@ struct VenueCardView: View {
         name: "Blue Bottle Coffee",
         category: "Coffee Shop",
         image: "https://picsum.photos/400/300",
-        interested_count: 5
+        interested_count: 5,
+        distance_km: 2.5
     ))
     .padding()
 }

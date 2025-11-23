@@ -88,7 +88,7 @@ enum APIError: LocalizedError {
 // MARK: - API Service Protocol
 
 protocol APIServiceProtocol {
-    func fetchVenues(userId: String?) async throws -> [VenueListItem]
+    func fetchVenues(userId: String?, filters: VenueFilters?) async throws -> [VenueListItem]
     func fetchVenueDetail(venueId: String) async throws -> VenueDetailResponse
     func expressInterest(userId: String, venueId: String) async throws -> InterestResponse
     func fetchUserProfile(userId: String) async throws -> UserProfileResponse
@@ -134,16 +134,63 @@ class APIService: ObservableObject, APIServiceProtocol {
     
     // MARK: - Public API Methods
     
-    /// Fetches list of all venues
-    /// - Parameter userId: Optional user ID to calculate distances
-    /// - Returns: Array of venue list items with interested counts and distances
+    /// Fetches list of all venues with optional filtering and sorting
+    /// - Parameters:
+    ///   - userId: Optional user ID to calculate distances and friend interests
+    ///   - filters: Optional venue filters to apply
+    /// - Returns: Array of venue list items with interested counts, distances, and friend interest data
     /// - Throws: APIError if request fails
-    func fetchVenues(userId: String? = nil) async throws -> [VenueListItem] {
-        var endpoint = "/venues"
+    func fetchVenues(userId: String? = nil, filters: VenueFilters? = nil) async throws -> [VenueListItem] {
+        var queryItems: [URLQueryItem] = []
+        
+        // Add user_id
         if let userId = userId {
-            endpoint += "?user_id=\(userId)"
+            queryItems.append(URLQueryItem(name: "user_id", value: userId))
         }
-        let response: VenuesResponse = try await performRequest(endpoint: endpoint, method: "GET")
+        
+        // Add filters if provided
+        if let filters = filters {
+            // Categories filter
+            if filters.selectedCategories != ["All"] && !filters.selectedCategories.isEmpty {
+                let categoriesString = filters.selectedCategories.sorted().joined(separator: ",")
+                queryItems.append(URLQueryItem(name: "categories", value: categoriesString))
+            }
+            
+            // Distance filter
+            if let maxDistance = filters.distanceFilter.kilometers {
+                queryItems.append(URLQueryItem(name: "max_distance", value: String(maxDistance)))
+            }
+            
+            // Friend interest filter
+            if let minFriends = filters.friendInterestFilter.minCount {
+                queryItems.append(URLQueryItem(name: "min_friend_interest", value: String(minFriends)))
+            }
+            
+            // Personal interest filters
+            switch filters.personalInterestFilter {
+            case .interested:
+                queryItems.append(URLQueryItem(name: "only_interested", value: "true"))
+            case .notInterested:
+                queryItems.append(URLQueryItem(name: "exclude_interested", value: "true"))
+            case .all:
+                break
+            }
+            
+            // Sort option
+            queryItems.append(URLQueryItem(name: "sort_by", value: filters.sortBy.rawValue))
+        }
+        
+        // Build URL with query parameters
+        var urlComponents = URLComponents(string: "\(baseURL)/venues")
+        if !queryItems.isEmpty {
+            urlComponents?.queryItems = queryItems
+        }
+        
+        guard let url = urlComponents?.url else {
+            throw APIError.invalidURL
+        }
+        
+        let response: VenuesResponse = try await performRequest(url: url, method: "GET")
         return response.venues
     }
     

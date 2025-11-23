@@ -63,6 +63,9 @@ struct VenueFeedView: View {
                 } else if shouldShowError {
                     // Show error message if no venues and error exists
                     errorView
+                } else if viewModel.venues.isEmpty && !viewModel.filters.isDefault {
+                    // Show filtered empty state
+                    filteredEmptyState
                 } else if viewModel.venues.isEmpty {
                     // Show empty state
                     emptyStateView
@@ -73,6 +76,19 @@ struct VenueFeedView: View {
             }
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        viewModel.showFilterSheet = true
+                    }) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 20))
+                            .overlay(alignment: .topTrailing) {
+                                FilterBadge(count: viewModel.activeFilterCount)
+                            }
+                    }
+                }
+            }
             .task {
                 await viewModel.loadAll()
             }
@@ -83,6 +99,13 @@ struct VenueFeedView: View {
             } message: {
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
+                }
+            }
+            .sheet(isPresented: $viewModel.showFilterSheet) {
+                FilterSheet(filters: $viewModel.filters) {
+                    Task {
+                        await viewModel.applyFilters()
+                    }
                 }
             }
         }
@@ -141,9 +164,39 @@ struct VenueFeedView: View {
         )
     }
     
+    private var filteredEmptyState: some View {
+        EmptyStateView.filteredResults {
+            Task {
+                await viewModel.clearFilters()
+            }
+        }
+    }
+    
     private var venueListView: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
+                // Sort Menu and Active Filter Summary
+                VStack(spacing: 12) {
+                    HStack {
+                        SortMenu(selectedSort: $viewModel.filters.sortBy) {
+                            Task {
+                                await viewModel.applyFilters()
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    
+                    // Active Filter Summary (if filters applied)
+                    if let summary = viewModel.activeSummary {
+                        ActiveFilterSummary(summary: summary) {
+                            Task {
+                                await viewModel.clearFilters()
+                            }
+                        }
+                    }
+                }
+                
                 // Recommended for You Section
                 if !viewModel.recommendations.isEmpty {
                     recommendationsSection

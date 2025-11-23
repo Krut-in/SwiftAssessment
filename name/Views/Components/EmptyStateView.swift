@@ -7,12 +7,14 @@
 //  DESCRIPTION:
 //  Reusable empty state component for consistent UX across the app.
 //  Displays icon, title, message, and optional action button.
+//  Supports both general empty states and filtered result variants.
 //  
 //  KEY FEATURES:
 //  - Configurable icon, title, and message
 //  - Optional action button with callback
 //  - Consistent styling across all empty states
 //  - Smooth animations for appearance
+//  - Special variant for filtered results
 //  
 //  USAGE:
 //  EmptyStateView(
@@ -22,6 +24,9 @@
 //      actionTitle: "Explore Venues",
 //      action: { /* Navigate to discover tab */ }
 //  )
+//
+//  // Filtered results variant:
+//  EmptyStateView.filteredResults(onClearFilters: { ... })
 //
 
 import SwiftUI
@@ -71,6 +76,19 @@ struct EmptyStateView: View {
         .padding()
         .transition(.opacity)
     }
+    
+    // MARK: - Convenience Initializers
+    
+    /// Filtered results empty state variant
+    static func filteredResults(onClearFilters: @escaping () -> Void) -> EmptyStateView {
+        EmptyStateView(
+            icon: "line.3.horizontal.decrease.circle",
+            title: "No venues match your filters",
+            message: "Try adjusting your filters to see more venues",
+            actionTitle: "Clear Filters",
+            action: onClearFilters
+        )
+    }
 }
 
 // MARK: - Preview
@@ -90,5 +108,8 @@ struct EmptyStateView: View {
             title: "No Coffee Shops Found",
             message: "Try another filter to discover more venues"
         )
+        
+        EmptyStateView.filteredResults(onClearFilters: { print("Clear filters") })
     }
 }
+

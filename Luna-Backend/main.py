@@ -381,20 +381,33 @@ def root():
 
 
 @app.get("/venues")
-async def get_venues(user_id: Optional[str] = None):
+async def get_venues(
+    user_id: Optional[str] = None,
+    categories: Optional[str] = None,
+    max_distance: Optional[float] = None,
+    min_friend_interest: Optional[int] = None,
+    only_interested: Optional[bool] = None,
+    exclude_interested: Optional[bool] = None,
+    sort_by: Optional[str] = None
+):
     """
-    Get list of all venues with basic information.
-    
-    If user_id is provided, calculates distance from user to each venue.
+    Get list of all venues with optional filtering and sorting.
     
     Args:
-        user_id: Optional user ID to calculate distances
+        user_id: Optional user ID to calculate distances and friend interests
+        categories: Comma-separated list of categories to filter by
+        max_distance: Maximum distance in km (requires user_id)
+        min_friend_interest: Minimum number of friends interested (requires user_id)
+        only_interested: Show only venues user is interested in (requires user_id)
+        exclude_interested: Show only venues user is NOT interested in (requires user_id)
+        sort_by: Sort criterion (distance, popularity, friends, recentlyAdded, name)
     
     Returns:
-        JSON object with venues array containing id, name, category, image, interested_count,
-        and optionally distance_km (if user_id provided)
+        JSON object with venues array, applied filters, and result counts
     """
-    logger.info(f"Fetching all venues (user_id: {user_id})")
+    logger.info(f"Fetching venues with filters: user_id={user_id}, categories={categories}, "
+                f"max_distance={max_distance}, min_friend_interest={min_friend_interest}, "
+                f"only_interested={only_interested}, exclude_interested={exclude_interested}, sort_by={sort_by}")
     
     async with get_db() as session:
         # Get user if user_id provided
@@ -404,10 +417,24 @@ async def get_venues(user_id: Optional[str] = None):
             if not user:
                 logger.warning(f"User not found: {user_id}")
         
-        # Get all venues
-        result = await session.execute(select(VenueDB))
+        # Build base query with category filter
+        query = select(VenueDB)
+        
+        # Apply category filter at SQL level
+        if categories and categories.lower() != "all":
+            category_list = [cat.strip() for cat in categories.split(",") if cat.strip()]
+            if category_list:
+                query = query.where(VenueDB.category.in_(category_list))
+        
+        # Get total venues count before filtering
+        total_result = await session.execute(select(func.count()).select_from(VenueDB))
+        total_venues = total_result.scalar() or 0
+        
+        # Execute query
+        result = await session.execute(query)
         venues_db = result.scalars().all()
         
+        # Build venue list with all data
         venues = []
         for venue in venues_db:
             interested_count = await get_interested_count(session, venue.id)
@@ -416,18 +443,85 @@ async def get_venues(user_id: Optional[str] = None):
                 "name": venue.name,
                 "category": venue.category,
                 "image": venue.image,
-                "interested_count": interested_count
+                "interested_count": interested_count,
+                "created_at": venue.created_at.isoformat() if venue.created_at else None
             }
             
             # Calculate distance if user provided
             if user:
                 distance_km = haversine_distance(user.latitude, user.longitude, venue.latitude, venue.longitude)
                 venue_data["distance_km"] = distance_km
+                
+                # Calculate friends interested
+                friends_interested = await count_friends_interested(session, user_id, venue.id)
+                venue_data["friends_interested"] = friends_interested
+                
+                # Check if user is interested
+                interest_result = await session.execute(
+                    select(InterestDB).where(
+                        and_(
+                            InterestDB.user_id == user_id,
+                            InterestDB.venue_id == venue.id
+                        )
+                    )
+                )
+                user_interested = interest_result.scalar() is not None
+                venue_data["user_interested"] = user_interested
             
             venues.append(venue_data)
         
-        logger.info(f"Returning {len(venues)} venues")
-        return {"venues": venues}
+        # Apply distance filter
+        if max_distance is not None and user:
+            venues = [v for v in venues if v.get("distance_km", float("inf")) <= max_distance]
+        
+        # Apply friend interest filter
+        if min_friend_interest is not None and user:
+            venues = [v for v in venues if v.get("friends_interested", 0) >= min_friend_interest]
+        
+        # Apply personal interest filters
+        if only_interested and user:
+            venues = [v for v in venues if v.get("user_interested", False)]
+        elif exclude_interested and user:
+            venues = [v for v in venues if not v.get("user_interested", False)]
+        
+        # Apply sorting
+        sort_criterion = sort_by or "popularity"
+        if sort_criterion == "distance" and user:
+            venues.sort(key=lambda v: (v.get("distance_km", float("inf")), v["name"].lower()))
+        elif sort_criterion == "popularity":
+            venues.sort(key=lambda v: (-v["interested_count"], v["name"].lower()))
+        elif sort_criterion == "friends" and user:
+            venues.sort(key=lambda v: (-v.get("friends_interested", 0), v["name"].lower()))
+        elif sort_criterion == "recentlyAdded":
+            venues.sort(key=lambda v: (-(v.get("created_at") or "").replace("T", " "), v["name"].lower()))
+        elif sort_criterion == "name":
+            venues.sort(key=lambda v: v["name"].lower())
+        else:
+            # Default: popularity
+            venues.sort(key=lambda v: (-v["interested_count"], v["name"].lower()))
+        
+        # Build response with metadata
+        applied_filters = {}
+        if categories:
+            applied_filters["categories"] = categories
+        if max_distance is not None:
+            applied_filters["max_distance"] = max_distance
+        if min_friend_interest is not None:
+            applied_filters["min_friend_interest"] = min_friend_interest
+        if only_interested:
+            applied_filters["only_interested"] = only_interested
+        if exclude_interested:
+            applied_filters["exclude_interested"] = exclude_interested
+        if sort_by:
+            applied_filters["sort_by"] = sort_by
+        
+        logger.info(f"Returning {len(venues)} venues (total: {total_venues})")
+        return {
+            "venues": venues,
+            "applied_filters": applied_filters,
+            "result_count": len(venues),
+            "total_venues": total_venues
+        }
 
 
 @app.get("/venues/{venue_id}")
