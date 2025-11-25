@@ -31,7 +31,7 @@ import Combine
 
 /// Shared application state for managing user data and interests across views
 @MainActor
-class AppState: ObservableObject {
+class AppState: ObservableObject, @unchecked Sendable {
     
     // MARK: - Singleton
     
@@ -49,6 +49,9 @@ class AppState: ObservableObject {
     @Published var pendingActionItem: ActionItem?
     @Published var showActionItemToast = false
     
+    /// Action item count for badge display
+    @Published var actionItemCount: Int = 0
+    
     /// Selected tab index for tab navigation
     @Published var selectedTab: Int = 0
     
@@ -59,11 +62,11 @@ class AppState: ObservableObject {
     
     // MARK: - Initialization
     
-    private init(apiService: APIServiceProtocol = APIService()) {
+    nonisolated private init(apiService: APIServiceProtocol = APIService()) {
         self.apiService = apiService
         
         // Load user's interested venues on initialization
-        Task {
+        Task { @MainActor in
             await loadUserInterests()
         }
     }
@@ -77,6 +80,7 @@ class AppState: ObservableObject {
             
             await MainActor.run {
                 self.interestedVenueIds = Set(response.interested_venues.map { $0.id })
+                self.actionItemCount = response.action_items.count
             }
         } catch {
             // Silent fail - we'll show interest state as empty

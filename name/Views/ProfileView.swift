@@ -86,69 +86,88 @@ struct ProfileView: View {
                     // Profile Content
                     ScrollView {
                         VStack(spacing: Theme.Layout.largeSpacing) {
-                            // User Header
-                            VStack(spacing: Theme.Layout.spacing) {
-                                // User Avatar
-                                AsyncImage(url: URL(string: user.avatar)) { phase in
-                                    switch phase {
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 120, height: 120)
-                                            .clipShape(Circle())
-                                    default:
-                                        Circle()
-                                            .fill(Theme.Colors.secondaryBackground)
-                                            .frame(width: 120, height: 120)
-                                            .overlay {
-                                                Image(systemName: "person.fill")
-                                                    .font(.system(size: 48))
-                                                    .foregroundColor(Theme.Colors.textSecondary)
-                                            }
-                                    }
-                                }
-                                .elevationMedium()
-                                
-                                // User Name
-                                Text(user.name)
-                                    .font(Theme.Fonts.title)
-                                    .fontWeight(.bold)
-                                
-                                // Places Saved Count
-                                Text("\(viewModel.interestedVenues.count) places saved")
-                                    .font(Theme.Fonts.subheadline)
-                                    .foregroundColor(Theme.Colors.textSecondary)
-                                
-                                // User Bio
-                                if !user.displayBio.isEmpty {
-                                    Text(user.displayBio)
-                                        .font(Theme.Fonts.body)
-                                        .foregroundColor(Theme.Colors.textSecondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal)
-                                }
-                                
-                                // User Interests
-                                if !user.displayInterests.isEmpty {
-                                    HStack(spacing: Theme.Layout.smallSpacing) {
-                                        ForEach(user.displayInterests, id: \.self) { interest in
-                                            Text(interest.capitalized)
-                                                .font(Theme.Fonts.caption)
-                                                .fontWeight(.semibold)
-                                                .foregroundColor(.white)
-                                                .padding(.horizontal, 12)
-                                                .padding(.vertical, 6)
-                                                .background(Theme.Colors.accent)
-                                                .clipShape(Capsule())
+                            // User Header - Horizontal Layout
+                            HStack(alignment: .top, spacing: Theme.Layout.padding) {
+                                // Left Side - Avatar & Name
+                                VStack(spacing: Theme.Layout.smallSpacing) {
+                                    // User Avatar - Rounded Rectangle
+                                    AsyncImage(url: URL(string: user.avatar)) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 100, height: 100)
+                                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                        default:
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(Theme.Colors.secondaryBackground)
+                                                .frame(width: 100, height: 100)
+                                                .overlay {
+                                                    Image(systemName: "person.fill")
+                                                        .font(.system(size: 40))
+                                                        .foregroundColor(Theme.Colors.textSecondary)
+                                                }
                                         }
                                     }
+                                    .elevationMedium()
+                                    
+                                    // User Name
+                                    Text(user.name)
+                                        .font(Theme.Fonts.headline)
+                                        .fontWeight(.semibold)
+                                        .multilineTextAlignment(.center)
                                 }
+                                .frame(width: 100)
                                 
-                                // Theme Toggle (subtle, minimal design)
-                                ProfileThemeToggle()
-                                    .padding(.top, 12)
+                                // Right Side - Bio, Interests, Stats, Theme Toggle
+                                VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
+                                    // User Bio
+                                    if !user.displayBio.isEmpty {
+                                        Text(user.displayBio)
+                                            .font(Theme.Fonts.subheadline)
+                                            .foregroundColor(Theme.Colors.textSecondary)
+                                            .lineLimit(3)
+                                    }
+                                    
+                                    // User Interests
+                                    if !user.displayInterests.isEmpty {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            ForEach(Array(stride(from: 0, to: user.displayInterests.count, by: 2)), id: \.self) { index in
+                                                HStack(spacing: Theme.Layout.smallSpacing) {
+                                                    ForEach(index..<min(index + 2, user.displayInterests.count), id: \.self) { i in
+                                                        Text(user.displayInterests[i].capitalized)
+                                                            .font(Theme.Fonts.caption)
+                                                            .fontWeight(.semibold)
+                                                            .foregroundColor(.white)
+                                                            .padding(.horizontal, 10)
+                                                            .padding(.vertical, 5)
+                                                            .background(Theme.Colors.accent)
+                                                            .clipShape(Capsule())
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Places Saved Count
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "heart.fill")
+                                            .font(Theme.Fonts.caption)
+                                            .foregroundColor(Theme.Colors.accent)
+                                        
+                                        Text("\(viewModel.interestedVenues.count) places saved")
+                                            .font(Theme.Fonts.subheadline)
+                                            .foregroundColor(Theme.Colors.textSecondary)
+                                    }
+                                    
+                                    // Theme Toggle
+                                    ProfileThemeToggle()
+                                        .padding(.top, 4)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            .padding(.horizontal)
                             .padding(.top, 20)
                             
                             // Action Items Section

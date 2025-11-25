@@ -116,6 +116,9 @@ class ProfileViewModel: ObservableObject {
                 self.actionItems = response.action_items
                 self.isLoading = false
                 self.lastUpdated = Date()
+                
+                // Update global action item count for badge
+                appState.actionItemCount = response.action_items.count
             }
         } catch let error as APIError {
             await MainActor.run {
@@ -139,6 +142,7 @@ class ProfileViewModel: ObservableObject {
             // Remove from local list
             await MainActor.run {
                 actionItems.removeAll { $0.id == itemId }
+                appState.actionItemCount = actionItems.count
             }
         } catch {
             await MainActor.run {
@@ -156,6 +160,7 @@ class ProfileViewModel: ObservableObject {
             // Remove from local list
             await MainActor.run {
                 actionItems.removeAll { $0.id == itemId }
+                appState.actionItemCount = actionItems.count
             }
         } catch {
             await MainActor.run {

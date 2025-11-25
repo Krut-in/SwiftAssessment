@@ -53,6 +53,7 @@ struct ContentView: View {
                         Label("Profile", systemImage: "person.fill")
                     }
                     .tag(2)
+                    .badge(appState.actionItemCount > 0 ? "\(appState.actionItemCount)" : "")
             }
             
             // Global Action Item Toast Overlay
