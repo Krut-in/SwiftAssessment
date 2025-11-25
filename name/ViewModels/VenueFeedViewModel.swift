@@ -68,7 +68,6 @@ class VenueFeedViewModel: ObservableObject {
     // MARK: - Published Properties
     
     @Published var venues: [VenueListItem] = []
-    @Published var recommendations: [RecommendationItem] = []
     @Published var filters = VenueFilters()
     @Published var showFilterSheet = false
     @Published var isLoading = false
@@ -91,7 +90,7 @@ class VenueFeedViewModel: ObservableObject {
     private let apiService: APIServiceProtocol
     private let appState: AppState
     private var cancellables = Set<AnyCancellable>()
-    private var recommendationScores: [String: Double] = [:] // venueId -> score mapping
+
     
     // MARK: - Initialization
     
@@ -146,41 +145,11 @@ class VenueFeedViewModel: ObservableObject {
         filters.reset()
         await loadVenues()
     }
+
     
-    /// Loads personalized recommendations for the current user
-    /// Updates recommendations array and merges scores with venue list
-    func loadRecommendations() async {
-        let userId = appState.currentUserId
-        
-        do {
-            let fetchedRecommendations = try await apiService.fetchRecommendations(userId: userId)
-            
-            await MainActor.run {
-                // Limit to top 3 recommendations by score
-                let topRecommendations = fetchedRecommendations
-                    .sorted { $0.score > $1.score }
-                    .prefix(3)
-                
-                self.recommendations = Array(topRecommendations)
-                
-                // Build score mapping for sorting venues (include all scores)
-                self.recommendationScores = Dictionary(
-                    uniqueKeysWithValues: fetchedRecommendations.map { ($0.venue.id, $0.score) }
-                )
-                
-                // Re-sort existing venues based on current sort option
-                self.venues = self.sortVenues(self.venues)
-            }
-        } catch {
-            // Silent fail for recommendations - they're supplementary
-            print("Failed to load recommendations: \(error.localizedDescription)")
-        }
-    }
-    
-    /// Loads both venues and recommendations concurrently
+    /// Loads venues from the API
     func loadAll() async {
         await loadVenues()
-        await loadRecommendations()
     }
     
     /// Refreshes the venue list
@@ -193,11 +162,7 @@ class VenueFeedViewModel: ObservableObject {
     func clearError() {
         errorMessage = nil
     }
-    
-    /// Returns recommendation score for a venue if available
-    func recommendationScore(for venueId: String) -> Double? {
-        return recommendationScores[venueId]
-    }
+
     
     /// Returns unique categories from all venues
     var availableCategories: [String] {
@@ -270,22 +235,6 @@ class VenueFeedViewModel: ObservableObject {
         case .friends:
             // For now, fallback to popularity as friend data might be limited in list item
             return venues.sorted { $0.interested_count > $1.interested_count }
-        }
-    }
-    
-    /// Sorts venues by recommendation score (highest first), then by interested count
-    /// Used ONLY for the recommendation section or initial default sort if needed
-    private func sortVenuesByRecommendation(_ venues: [VenueListItem]) -> [VenueListItem] {
-        return venues.sorted { venue1, venue2 in
-            let score1 = recommendationScores[venue1.id] ?? 0
-            let score2 = recommendationScores[venue2.id] ?? 0
-            
-            if score1 != score2 {
-                return score1 > score2
-            }
-            
-            // If scores equal, sort by interested count
-            return venue1.interested_count > venue2.interested_count
         }
     }
 }

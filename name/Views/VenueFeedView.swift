@@ -41,10 +41,9 @@ struct VenueFeedView: View {
     
     // MARK: - Computed Properties
     
-    /// Filters out venues that are already shown in recommendations
+    /// Filters venues by selected category
     private var filteredVenues: [VenueListItem] {
-        let recommendedVenueIds = Set(viewModel.recommendations.map { $0.venue.id })
-        var filtered = viewModel.venues.filter { !recommendedVenueIds.contains($0.id) }
+        var filtered = viewModel.venues
         
         // Apply category filter if selected
         if let selectedCategory = viewModel.selectedCategory {
@@ -202,11 +201,6 @@ struct VenueFeedView: View {
                     }
                 }
                 
-                // Recommended for You Section
-                if !viewModel.recommendations.isEmpty {
-                    recommendationsSection
-                }
-                
                 // All Venues Section
                 if !viewModel.venues.isEmpty {
                     allVenuesSection
@@ -222,47 +216,12 @@ struct VenueFeedView: View {
             await viewModel.refresh()
         }
     }
-    
-    private var recommendationsSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
-            // Section Header
-            HStack {
-                Image(systemName: "star.fill")
-                    .foregroundColor(Theme.Colors.accent)
-                Text("Recommended for You")
-                    .font(Theme.Fonts.title2)
-                    .fontWeight(.bold)
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
-            
-            // Recommended Venues
-            ForEach(viewModel.recommendations) { recommendation in
-                NavigationLink(destination: VenueDetailView(venueId: recommendation.venue.id)) {
-                    RecommendedVenueCardView(
-                        recommendation: recommendation,
-                        onInterestToggled: {
-                            Task {
-                                // Refresh recommendations after interest toggle
-                                await viewModel.loadRecommendations()
-                            }
-                        }
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
-                .padding(.horizontal)
-            }
-            
-            // Divider
-            Divider()
-                .padding(.vertical, 8)
-        }
-    }
+
     
     private var allVenuesSection: some View {
         Group {
-            // Section header with filter (only show if recommendations exist or venues exist)
-            if !viewModel.recommendations.isEmpty || !viewModel.venues.isEmpty {
+            // Section header with filter
+            if !viewModel.venues.isEmpty {
                 VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
                     HStack {
                         Text("All Venues")
@@ -308,10 +267,7 @@ struct VenueFeedView: View {
                         VenueCardView(
                             venue: venue,
                             onInterestToggled: {
-                                Task {
-                                    // Refresh after interest toggle
-                                    await viewModel.loadRecommendations()
-                                }
+                                // No action needed - AppState handles it
                             }
                         )
                     }

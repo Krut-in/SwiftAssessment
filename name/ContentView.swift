@@ -40,12 +40,19 @@ struct ContentView: View {
                     }
                     .tag(0)
                 
+                // Recommended Tab
+                RecommendedFeedView()
+                    .tabItem {
+                        Label("Recommended", systemImage: "star.fill")
+                    }
+                    .tag(1)
+                
                 // Profile Tab
                 ProfileView()
                     .tabItem {
                         Label("Profile", systemImage: "person.fill")
                     }
-                    .tag(1)
+                    .tag(2)
             }
             
             // Global Action Item Toast Overlay
