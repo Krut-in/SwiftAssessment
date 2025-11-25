@@ -15,6 +15,7 @@
 //  - Empty state messaging for better UX
 //  - Loading indicators during data fetch
 //  - Navigation to venue detail views
+//  - Uses centralized Theme for consistent styling
 //  
 //  STATE MANAGEMENT:
 //  - Uses VenueFeedViewModel for data and loading states
@@ -26,6 +27,7 @@
 //  - Inline errors after first load to preserve list
 //  - Clear error messages with retry actions
 //  - Smooth transitions between loading/error/content states
+//
 //
 
 import SwiftUI
@@ -57,6 +59,9 @@ struct VenueFeedView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                Theme.Colors.background
+                    .ignoresSafeArea()
+                
                 if viewModel.isLoading && viewModel.venues.isEmpty {
                     // Show loading indicator when initially loading
                     loadingView
@@ -83,6 +88,7 @@ struct VenueFeedView: View {
                     }) {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                             .font(.system(size: 20))
+                            .foregroundColor(Theme.Colors.primary)
                             .overlay(alignment: .topTrailing) {
                                 FilterBadge(count: viewModel.activeFilterCount)
                             }
@@ -127,22 +133,28 @@ struct VenueFeedView: View {
     // MARK: - View Components
     
     private var loadingView: some View {
-        ProgressView("Loading venues...")
-            .progressViewStyle(CircularProgressViewStyle())
+        VStack(spacing: Theme.Layout.spacing) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primary))
+                .scaleEffect(1.5)
+            Text("Loading venues...")
+                .font(Theme.Fonts.subheadline)
+                .foregroundColor(Theme.Colors.textSecondary)
+        }
     }
     
     private var errorView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Theme.Layout.spacing) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundColor(.orange)
+                .foregroundColor(Theme.Colors.warning)
             
             Text("Error Loading Venues")
-                .font(.headline)
+                .font(Theme.Fonts.headline)
             
             Text(viewModel.errorMessage ?? "Unknown error")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(Theme.Fonts.subheadline)
+                .foregroundColor(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
             
@@ -152,6 +164,7 @@ struct VenueFeedView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .tint(Theme.Colors.primary)
         }
         .padding()
     }
@@ -174,18 +187,10 @@ struct VenueFeedView: View {
     
     private var venueListView: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: Theme.Layout.spacing) {
                 // Sort Menu and Active Filter Summary
-                VStack(spacing: 12) {
-                    HStack {
-                        SortMenu(selectedSort: $viewModel.filters.sortBy) {
-                            Task {
-                                await viewModel.applyFilters()
-                            }
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
+                VStack(spacing: Theme.Layout.spacing) {
+
                     
                     // Active Filter Summary (if filters applied)
                     if let summary = viewModel.activeSummary {
@@ -219,13 +224,13 @@ struct VenueFeedView: View {
     }
     
     private var recommendationsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
             // Section Header
             HStack {
                 Image(systemName: "star.fill")
-                    .foregroundColor(.green)
+                    .foregroundColor(Theme.Colors.accent)
                 Text("Recommended for You")
-                    .font(.title2)
+                    .font(Theme.Fonts.title2)
                     .fontWeight(.bold)
             }
             .padding(.horizontal)
@@ -258,14 +263,21 @@ struct VenueFeedView: View {
         Group {
             // Section header with filter (only show if recommendations exist or venues exist)
             if !viewModel.recommendations.isEmpty || !viewModel.venues.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
                     HStack {
                         Text("All Venues")
-                            .font(.title2)
+                            .font(Theme.Fonts.title2)
                             .fontWeight(.bold)
+                        
+                        Spacer()
+                        
+                        SortMenu(selectedSort: $viewModel.filters.sortBy) {
+                            Task {
+                                await viewModel.applyFilters()
+                            }
+                        }
                     }
                     .padding(.horizontal)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     
                     // Category Filter Bar
                     if !viewModel.availableCategories.isEmpty {

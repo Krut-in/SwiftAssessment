@@ -20,5 +20,7 @@
 		<key>UIImageName</key>
 		<string></string>
 	</dict>
+	<key>CFBundleDisplayName</key>
+	<string>Luna</string>
 </dict>
 </plist>

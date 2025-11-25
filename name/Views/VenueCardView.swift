@@ -16,6 +16,7 @@
 //  - Optimistic interest count updates for immediate feedback
 //  - Robust error recovery with count reversion
 //  - Proper pluralization for interest count display
+//  - Uses centralized Theme for consistent styling
 //  
 //  DESIGN DECISIONS:
 //  - Card shadow for depth perception and visual separation
@@ -55,6 +56,7 @@
 //  - Toggle failures revert optimistic updates
 //  - All errors logged for debugging without crashing UI
 //  - Graceful degradation for network issues
+//
 //
 
 import SwiftUI
@@ -115,7 +117,7 @@ struct VenueCardView: View {
                 case .empty:
                     // Placeholder while loading
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Theme.Colors.secondaryBackground)
                         .aspectRatio(4/3, contentMode: .fill)
                         .overlay {
                             ProgressView()
@@ -128,29 +130,29 @@ struct VenueCardView: View {
                 case .failure:
                     // Failed to load image - show placeholder
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Theme.Colors.secondaryBackground)
                         .aspectRatio(4/3, contentMode: .fill)
                         .overlay {
                             Image(systemName: "photo")
-                                .font(.largeTitle)
-                                .foregroundColor(.gray)
+                                .font(Theme.Fonts.largeTitle)
+                                .foregroundColor(Theme.Colors.textSecondary)
                         }
                 @unknown default:
                     // Fallback for future AsyncImagePhase cases
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Theme.Colors.secondaryBackground)
                         .aspectRatio(4/3, contentMode: .fill)
                 }
             }
             .clipped()
             
             // MARK: Venue Info Section
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Theme.Layout.smallSpacing) {
                 // MARK: Category Badge and Heart Button Row
                 HStack {
                     // Category Badge
                     Text(venue.category)
-                        .font(.caption)
+                        .font(Theme.Fonts.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
@@ -167,15 +169,15 @@ struct VenueCardView: View {
                     } label: {
                         Image(systemName: isInterested ? "heart.fill" : "heart")
                             .font(.system(size: 20))
-                            .foregroundColor(isInterested ? .red : .gray)
+                            .foregroundColor(isInterested ? Theme.Colors.error : Theme.Colors.textSecondary)
                             .frame(width: 44, height: 44)
                     }
                     .scaleEffect(isAnimating ? 1.2 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAnimating)
+                    .animation(Theme.Animation.spring, value: isAnimating)
                     .accessibilityLabel(isInterested ? "Remove from interested venues" : "Mark as interested")
                     .accessibilityHint("Double tap to toggle interest")
                 }
-                .padding(.top, 12)
+                .padding(.top, Theme.Layout.spacing)
                 
                 // MARK: Distance Badge
                 if venue.distance_km != nil {
@@ -184,29 +186,29 @@ struct VenueCardView: View {
                 
                 // MARK: Venue Name
                 Text(venue.name)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.primary)
+                    .font(Theme.Fonts.title3)
+                    .foregroundColor(Theme.Colors.textPrimary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 
                 // MARK: Interested Count
                 HStack(spacing: 4) {
                     Image(systemName: "person.2")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(Theme.Fonts.caption)
+                        .foregroundColor(Theme.Colors.textSecondary)
                     Text(interestedCountText)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(Theme.Fonts.subheadline)
+                        .foregroundColor(Theme.Colors.textSecondary)
                 }
-                .padding(.bottom, 12)
+                .padding(.bottom, Theme.Layout.spacing)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(interestedCountText)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Theme.Layout.padding)
         }
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .background(Theme.Colors.cardBackground)
+        .cornerRadius(Theme.Layout.cornerRadius)
+        .shadow(color: Theme.Colors.shadow, radius: 8, x: 0, y: 4)
     }
     
     // MARK: - Helper Methods
@@ -293,19 +295,19 @@ struct VenueCardView: View {
     private func categoryColor(for category: String) -> Color {
         switch category.lowercased() {
         case "coffee shop", "coffee", "café", "cafe":
-            return Color.blue
+            return Theme.Colors.accent
         case "restaurant", "food", "dining":
-            return Color.orange
+            return Theme.Colors.warning
         case "bar", "nightlife", "pub", "lounge":
-            return Color.purple
+            return Color.purple // Keep custom if not in Theme
         case "museum", "cultural", "culture", "art", "gallery":
-            return Color.green
+            return Theme.Colors.success
         case "park", "outdoor", "nature":
             return Color.teal
         case "entertainment", "theater", "cinema":
             return Color.pink
         default:
-            return Color.gray
+            return Theme.Colors.textSecondary
         }
     }
 }

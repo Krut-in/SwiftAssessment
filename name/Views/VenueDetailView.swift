@@ -15,6 +15,7 @@
 //  - Category-based color coding for visual hierarchy
 //  - Success/error message handling
 //  - Automatic booking agent alert propagation
+//  - Uses centralized Theme for consistent styling
 //  
 //  DESIGN PATTERNS:
 //  - Custom back button (navigationBarBackButtonHidden)
@@ -32,6 +33,8 @@
 //  - Success messages auto-dismiss after 2 seconds
 //  - Booking agent messages shown in global alert (ContentView)
 //  - Reload venue detail after interest toggle to update count
+//  - Consistent error and loading states
+//
 //
 
 import SwiftUI
@@ -73,7 +76,7 @@ struct VenueDetailView: View {
                                     .clipped()
                             default:
                                 Rectangle()
-                                    .fill(Color.gray.opacity(0.2))
+                                    .fill(Theme.Colors.secondaryBackground)
                                     .frame(height: 300)
                                     .overlay {
                                         ProgressView()
@@ -89,11 +92,11 @@ struct VenueDetailView: View {
                             } label: {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.primary)
+                                    .foregroundColor(Theme.Colors.textPrimary)
                                     .frame(width: 36, height: 36)
-                                    .background(Color.white)
+                                    .background(Theme.Colors.cardBackground)
                                     .clipShape(Circle())
-                                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                                    .shadow(color: Theme.Colors.shadow, radius: 4, x: 0, y: 2)
                             }
                             
                             Spacer()
@@ -108,26 +111,28 @@ struct VenueDetailView: View {
                             } label: {
                                 Image(systemName: "square.and.arrow.up")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.primary)
+                                    .foregroundColor(Theme.Colors.textPrimary)
                                     .frame(width: 36, height: 36)
-                                    .background(Color.white)
+                                    .background(Theme.Colors.cardBackground)
                                     .clipShape(Circle())
-                                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                                    .shadow(color: Theme.Colors.shadow, radius: 4, x: 0, y: 2)
                             }
                         }
-                        .padding([.leading, .trailing, .top], 16)
+                        .padding([.leading, .trailing, .top], Theme.Layout.padding)
                     }
                     
                     // Content
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
                         // Venue Name
                         Text(venue.name)
-                            .font(.system(size: 28, weight: .bold))
+                            .font(Theme.Fonts.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(Theme.Colors.textPrimary)
                         
                         // Category Badge and Address
-                        HStack(spacing: 12) {
+                        HStack(spacing: Theme.Layout.spacing) {
                             Text(venue.category)
-                                .font(.subheadline)
+                                .font(Theme.Fonts.subheadline)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 12)
@@ -137,16 +142,16 @@ struct VenueDetailView: View {
                             
                             HStack(spacing: 4) {
                                 Image(systemName: "mappin.circle")
-                                    .font(.caption)
+                                    .font(Theme.Fonts.caption)
                                 Text(venue.address)
-                                    .font(.subheadline)
+                                    .font(Theme.Fonts.subheadline)
                             }
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Theme.Colors.textSecondary)
                         }
                         
                         // Distance Badge
                         if let distance = venue.distance_km {
-                            HStack(spacing: 8) {
+                            HStack(spacing: Theme.Layout.smallSpacing) {
                                 DistanceBadge(distance_km: distance)
                                 
                                 // Get Directions Button
@@ -160,12 +165,12 @@ struct VenueDetailView: View {
                                             Text("Get Directions")
                                                 .font(.system(size: 12, weight: .medium))
                                         }
-                                        .foregroundColor(.blue)
+                                        .foregroundColor(Theme.Colors.primary)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
                                         .background(
                                             RoundedRectangle(cornerRadius: 6)
-                                                .fill(Color.blue.opacity(0.15))
+                                                .fill(Theme.Colors.primary.opacity(0.15))
                                         )
                                     }
                                 }
@@ -176,9 +181,9 @@ struct VenueDetailView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "person.2")
                             Text("\(viewModel.interestedUsers.count) people interested")
-                                .font(.subheadline)
+                                .font(Theme.Fonts.subheadline)
                         }
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Theme.Colors.textSecondary)
                         
                         // Interest Button
                         Button {
@@ -187,7 +192,7 @@ struct VenueDetailView: View {
                             impactFeedback.impactOccurred()
                             
                             // Animation
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            withAnimation(Theme.Animation.spring) {
                                 isButtonPressed = true
                             }
                             
@@ -196,7 +201,7 @@ struct VenueDetailView: View {
                                 
                                 // Reset animation state
                                 await MainActor.run {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                    withAnimation(Theme.Animation.spring) {
                                         isButtonPressed = false
                                     }
                                 }
@@ -212,12 +217,12 @@ struct VenueDetailView: View {
                                     Text(viewModel.isInterested ? "Interested" : "I'm Interested")
                                 }
                             }
-                            .font(.headline)
+                            .font(Theme.Fonts.headline)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
-                            .background(viewModel.isInterested ? Color.red : Color.blue)
-                            .cornerRadius(12)
+                            .background(viewModel.isInterested ? Theme.Colors.error : Theme.Colors.primary)
+                            .cornerRadius(Theme.Layout.cornerRadius)
                         }
                         .scaleEffect(isButtonPressed ? 0.95 : 1.0)
                         .disabled(viewModel.isTogglingInterest)
@@ -227,25 +232,25 @@ struct VenueDetailView: View {
                         if let successMessage = viewModel.successMessage {
                             HStack(spacing: 8) {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
+                                    .foregroundColor(Theme.Colors.success)
                                 Text(successMessage)
-                                    .font(.subheadline)
-                                    .foregroundColor(.green)
+                                    .font(Theme.Fonts.subheadline)
+                                    .foregroundColor(Theme.Colors.success)
                             }
                             .padding()
-                            .background(Color.green.opacity(0.1))
-                            .cornerRadius(8)
+                            .background(Theme.Colors.success.opacity(0.1))
+                            .cornerRadius(Theme.Layout.smallCornerRadius)
                         }
                         
                         // People Who Want to Go Section
                         if !viewModel.interestedUsers.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
                                 Text("People Who Want to Go")
-                                    .font(.title3)
+                                    .font(Theme.Fonts.title3)
                                     .fontWeight(.bold)
                                 
                                 ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 16) {
+                                    HStack(spacing: Theme.Layout.spacing) {
                                         ForEach(viewModel.interestedUsers) { user in
                                             VStack(spacing: 8) {
                                                 AsyncImage(url: URL(string: user.avatar)) { phase in
@@ -258,17 +263,18 @@ struct VenueDetailView: View {
                                                             .clipShape(Circle())
                                                     default:
                                                         Circle()
-                                                            .fill(Color.gray.opacity(0.3))
+                                                            .fill(Theme.Colors.secondaryBackground)
                                                             .frame(width: 60, height: 60)
                                                             .overlay {
                                                                 Image(systemName: "person.fill")
-                                                                    .foregroundColor(.gray)
+                                                                    .foregroundColor(Theme.Colors.textSecondary)
                                                             }
                                                     }
                                                 }
                                                 
                                                 Text(user.name)
-                                                    .font(.system(size: 12))
+                                                    .font(Theme.Fonts.caption)
+                                                    .foregroundColor(Theme.Colors.textPrimary)
                                                     .lineLimit(1)
                                             }
                                             .frame(width: 70)
@@ -282,37 +288,41 @@ struct VenueDetailView: View {
                         // About Section
                         VStack(alignment: .leading, spacing: 8) {
                             Text("About")
-                                .font(.title3)
+                                .font(Theme.Fonts.title3)
                                 .fontWeight(.bold)
                             
                             Text(venue.description)
-                                .font(.body)
-                                .foregroundColor(.secondary)
+                                .font(Theme.Fonts.body)
+                                .foregroundColor(Theme.Colors.textSecondary)
                         }
                         .padding(.top, 8)
                     }
                     .padding()
                 } else if viewModel.isLoading {
                     // Loading State
-                    VStack(spacing: 16) {
-                        ProgressView("Loading venue details...")
-                            .progressViewStyle(CircularProgressViewStyle())
+                    VStack(spacing: Theme.Layout.spacing) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primary))
+                            .scaleEffect(1.5)
+                        Text("Loading venue details...")
+                            .font(Theme.Fonts.subheadline)
+                            .foregroundColor(Theme.Colors.textSecondary)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 400)
                 } else if let errorMessage = viewModel.errorMessage {
                     // Error State
-                    VStack(spacing: 16) {
+                    VStack(spacing: Theme.Layout.spacing) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 48))
-                            .foregroundColor(.orange)
+                            .foregroundColor(Theme.Colors.warning)
                         
                         Text("Error Loading Venue")
-                            .font(.headline)
+                            .font(Theme.Fonts.headline)
                         
                         Text(errorMessage)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(Theme.Fonts.subheadline)
+                            .foregroundColor(Theme.Colors.textSecondary)
                             .multilineTextAlignment(.center)
                         
                         Button("Retry") {
@@ -321,6 +331,7 @@ struct VenueDetailView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
+                        .tint(Theme.Colors.primary)
                     }
                     .padding()
                     .frame(height: 400)
@@ -358,13 +369,13 @@ struct VenueDetailView: View {
         case "coffee shop", "coffee":
             return Color.brown
         case "restaurant", "food":
-            return Color.orange
+            return Theme.Colors.warning
         case "bar":
             return Color.purple
         case "cultural", "museum":
-            return Color.blue
+            return Theme.Colors.info
         default:
-            return Color.gray
+            return Theme.Colors.textSecondary
         }
     }
 }

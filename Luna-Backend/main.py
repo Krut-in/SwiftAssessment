@@ -400,7 +400,7 @@ async def get_venues(
         min_friend_interest: Minimum number of friends interested (requires user_id)
         only_interested: Show only venues user is interested in (requires user_id)
         exclude_interested: Show only venues user is NOT interested in (requires user_id)
-        sort_by: Sort criterion (distance, popularity, friends, recentlyAdded, name)
+        sort_by: Sort criterion (distance, popularity, friends, name)
     
     Returns:
         JSON object with venues array, applied filters, and result counts
@@ -492,8 +492,7 @@ async def get_venues(
             venues.sort(key=lambda v: (-v["interested_count"], v["name"].lower()))
         elif sort_criterion == "friends" and user:
             venues.sort(key=lambda v: (-v.get("friends_interested", 0), v["name"].lower()))
-        elif sort_criterion == "recentlyAdded":
-            venues.sort(key=lambda v: (-(v.get("created_at") or "").replace("T", " "), v["name"].lower()))
+
         elif sort_criterion == "name":
             venues.sort(key=lambda v: v["name"].lower())
         else:

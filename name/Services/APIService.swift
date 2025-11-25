@@ -15,6 +15,7 @@
 //  - Detailed error types for better error handling
 //  - Configurable base URL and URLSession for testing
 //  - Production-ready timeout and connectivity settings
+//  - URLComponents for safe URL construction
 //  
 //  API ENDPOINTS COVERED:
 //  - GET /venues - Fetch all venues with interested counts
@@ -38,6 +39,7 @@
 //  - Injectable URLSession for integration tests
 //  - Configurable base URL for different environments
 //
+//
 
 import Foundation
 import Combine
@@ -55,7 +57,7 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Unable to connect to server"
+            return "Unable to connect to server (Invalid URL)"
         case .networkError(let error):
             let nsError = error as NSError
             if nsError.code == NSURLErrorNotConnectedToInternet {
@@ -65,10 +67,10 @@ enum APIError: LocalizedError {
             } else if nsError.code == NSURLErrorCannotConnectToHost {
                 return "Unable to connect to server. Please try again."
             }
-            return "Network error. Please check your connection."
-        case .decodingError:
-            return "Something went wrong. Please try again."
-        case .serverError(let statusCode, _):
+            return "Network error: \(error.localizedDescription)"
+        case .decodingError(let error):
+            return "Failed to process server response: \(error.localizedDescription)"
+        case .serverError(let statusCode, let message):
             if statusCode == 404 {
                 return "Content not found."
             } else if statusCode == 500 {
@@ -76,9 +78,9 @@ enum APIError: LocalizedError {
             } else if statusCode >= 500 {
                 return "Server is experiencing issues. Please try again later."
             }
-            return "Something went wrong. Please try again."
+            return "Server error (\(statusCode)): \(message)"
         case .noData:
-            return "No data received. Please try again."
+            return "No data received from server."
         case .unknown:
             return "An unexpected error occurred. Please try again."
         }
@@ -135,11 +137,6 @@ class APIService: ObservableObject, APIServiceProtocol {
     // MARK: - Public API Methods
     
     /// Fetches list of all venues with optional filtering and sorting
-    /// - Parameters:
-    ///   - userId: Optional user ID to calculate distances and friend interests
-    ///   - filters: Optional venue filters to apply
-    /// - Returns: Array of venue list items with interested counts, distances, and friend interest data
-    /// - Throws: APIError if request fails
     func fetchVenues(userId: String? = nil, filters: VenueFilters? = nil) async throws -> [VenueListItem] {
         var queryItems: [URLQueryItem] = []
         
@@ -180,152 +177,79 @@ class APIService: ObservableObject, APIServiceProtocol {
             queryItems.append(URLQueryItem(name: "sort_by", value: filters.sortBy.rawValue))
         }
         
-        // Build URL with query parameters
-        var urlComponents = URLComponents(string: "\(baseURL)/venues")
-        if !queryItems.isEmpty {
-            urlComponents?.queryItems = queryItems
-        }
-        
-        guard let url = urlComponents?.url else {
-            throw APIError.invalidURL
-        }
-        
-        let response: VenuesResponse = try await performRequest(url: url, method: "GET")
+        let response: VenuesResponse = try await performRequest(endpoint: "/venues", method: "GET", queryItems: queryItems)
         return response.venues
     }
     
     /// Fetches detailed information about a specific venue
-    /// - Parameter venueId: The unique identifier of the venue
-    /// - Returns: Venue detail response with venue info and interested users
-    /// - Throws: APIError if request fails
     func fetchVenueDetail(venueId: String) async throws -> VenueDetailResponse {
-        let endpoint = "/venues/\(venueId)"
-        return try await performRequest(endpoint: endpoint, method: "GET")
+        return try await performRequest(endpoint: "/venues/\(venueId)", method: "GET")
     }
     
     /// Expresses user interest in a venue
-    /// - Parameters:
-    ///   - userId: The unique identifier of the user
-    ///   - venueId: The unique identifier of the venue
-    /// - Returns: Interest response with success status and booking agent info
-    /// - Throws: APIError if request fails
     func expressInterest(userId: String, venueId: String) async throws -> InterestResponse {
-        let endpoint = "/interests"
         let requestBody = InterestRequest(user_id: userId, venue_id: venueId)
-        return try await performRequest(endpoint: endpoint, method: "POST", body: requestBody)
+        return try await performRequest(endpoint: "/interests", method: "POST", body: requestBody)
     }
     
     /// Fetches user profile with their interested venues
-    /// - Parameter userId: The unique identifier of the user
-    /// - Returns: User profile response with user info and interested venues
-    /// - Throws: APIError if request fails
     func fetchUserProfile(userId: String) async throws -> UserProfileResponse {
-        let endpoint = "/users/\(userId)"
-        return try await performRequest(endpoint: endpoint, method: "GET")
+        return try await performRequest(endpoint: "/users/\(userId)", method: "GET")
     }
     
     /// Fetches personalized venue recommendations for a user
-    /// - Parameter userId: The unique identifier of the user
-    /// - Returns: Array of recommendation items with scores and reasons
-    /// - Throws: APIError if request fails
     func fetchRecommendations(userId: String) async throws -> [RecommendationItem] {
-        let endpoint = "/recommendations"
-        let urlString = "\(baseURL)\(endpoint)?user_id=\(userId)"
-        
-        guard let url = URL(string: urlString) else {
-            throw APIError.invalidURL
-        }
-        
-        let response: RecommendationsResponse = try await performRequest(url: url, method: "GET")
+        let queryItems = [URLQueryItem(name: "user_id", value: userId)]
+        let response: RecommendationsResponse = try await performRequest(endpoint: "/recommendations", method: "GET", queryItems: queryItems)
         return response.recommendations
     }
     
     /// Fetches all active bookings for a user
-    /// - Parameter userId: The unique identifier of the user
-    /// - Returns: Array of booking items with venue and reservation details
-    /// - Throws: APIError if request fails
     func fetchUserBookings(userId: String) async throws -> [BookingItem] {
-        let endpoint = "/bookings/\(userId)"
-        let response: UserBookingsResponse = try await performRequest(endpoint: endpoint, method: "GET")
+        let response: UserBookingsResponse = try await performRequest(endpoint: "/bookings/\(userId)", method: "GET")
         return response.bookings
     }
     
     /// Checks if a venue has an active booking
-    /// - Parameter venueId: The unique identifier of the venue
-    /// - Returns: Venue booking response with booking status and details
-    /// - Throws: APIError if request fails
     func fetchVenueBooking(venueId: String) async throws -> VenueBookingResponse {
-        let endpoint = "/venues/\(venueId)/booking"
-        return try await performRequest(endpoint: endpoint, method: "GET")
+        return try await performRequest(endpoint: "/venues/\(venueId)/booking", method: "GET")
     }
     
     /// Completes an action item
-    /// - Parameters:
-    ///   - itemId: The unique identifier of the action item
-    ///   - userId: The unique identifier of the user
-    /// - Returns: Success response
-    /// - Throws: APIError if request fails
     func completeActionItem(itemId: String, userId: String) async throws -> SuccessResponse {
-        let endpoint = "/action-items/\(itemId)/complete"
         let requestBody = CompleteActionItemRequest(user_id: userId)
-        return try await performRequest(endpoint: endpoint, method: "POST", body: requestBody)
+        return try await performRequest(endpoint: "/action-items/\(itemId)/complete", method: "POST", body: requestBody)
     }
     
     /// Dismisses an action item
-    /// - Parameters:
-    ///   - itemId: The unique identifier of the action item
-    ///   - userId: The unique identifier of the user
-    /// - Returns: Success response
-    /// - Throws: APIError if request fails
     func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse {
-        let endpoint = "/action-items/\(itemId)?user_id=\(userId)"
-        var request = URLRequest(url: URL(string: "\(baseURL)\(endpoint)")!)
-        request.httpMethod = "DELETE"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.serverError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 500, message: "Failed to dismiss action item")
-        }
-        
-        return try decoder.decode(SuccessResponse.self, from: data)
+        let queryItems = [URLQueryItem(name: "user_id", value: userId)]
+        return try await performRequest(endpoint: "/action-items/\(itemId)", method: "DELETE", queryItems: queryItems)
     }
     
     // MARK: - Private Helper Methods
     
     /// Performs a network request with the given parameters
-    /// - Parameters:
-    ///   - endpoint: The API endpoint path
-    ///   - method: HTTP method (GET, POST, etc.)
-    ///   - body: Optional request body to encode
-    /// - Returns: Decoded response of type T
-    /// - Throws: APIError if request fails
     private func performRequest<T: Decodable>(
         endpoint: String,
         method: String,
+        queryItems: [URLQueryItem]? = nil,
         body: Encodable? = nil
     ) async throws -> T {
-        guard let url = URL(string: "\(baseURL)\(endpoint)") else {
+        
+        // Construct URL using URLComponents
+        guard var components = URLComponents(string: baseURL) else {
             throw APIError.invalidURL
         }
         
-        return try await performRequest(url: url, method: method, body: body)
-    }
-    
-    /// Performs a network request with the given URL
-    /// - Parameters:
-    ///   - url: The complete URL for the request
-    ///   - method: HTTP method (GET, POST, etc.)
-    ///   - body: Optional request body to encode
-    /// - Returns: Decoded response of type T
-    /// - Throws: APIError if request fails
-    private func performRequest<T: Decodable>(
-        url: URL,
-        method: String,
-        body: Encodable? = nil
-    ) async throws -> T {
+        components.path = endpoint
+        components.queryItems = queryItems
+        
+        // Ensure the URL is valid
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -362,6 +286,11 @@ class APIService: ObservableObject, APIServiceProtocol {
         
         // Decode response
         do {
+            // Check if we expect a Void response or empty body
+            if T.self == SuccessResponse.self && data.isEmpty {
+                 // Handle empty success response if needed, though SuccessResponse usually has fields
+            }
+            
             let decodedResponse = try decoder.decode(T.self, from: data)
             return decodedResponse
         } catch {

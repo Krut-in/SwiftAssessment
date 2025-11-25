@@ -15,6 +15,7 @@
 //  - Pull-to-refresh support
 //  - Empty state for users with no saved venues
 //  - Navigation to venue details from grid
+//  - Uses centralized Theme for consistent styling
 //  
 //  LAYOUT:
 //  - ScrollView with VStack for vertical layout
@@ -59,17 +60,17 @@ struct ProfileView: View {
                         .progressViewStyle(CircularProgressViewStyle())
                 } else if let errorMessage = viewModel.errorMessage, viewModel.user == nil {
                     // Error State
-                    VStack(spacing: 16) {
+                    VStack(spacing: Theme.Layout.spacing) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 48))
-                            .foregroundColor(.orange)
+                            .foregroundColor(Theme.Colors.warning)
                         
                         Text("Error Loading Profile")
-                            .font(.headline)
+                            .font(Theme.Fonts.headline)
                         
                         Text(errorMessage)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(Theme.Fonts.subheadline)
+                            .foregroundColor(Theme.Colors.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                         
@@ -84,9 +85,9 @@ struct ProfileView: View {
                 } else if let user = viewModel.user {
                     // Profile Content
                     ScrollView {
-                        VStack(spacing: 24) {
+                        VStack(spacing: Theme.Layout.largeSpacing) {
                             // User Header
-                            VStack(spacing: 12) {
+                            VStack(spacing: Theme.Layout.spacing) {
                                 // User Avatar
                                 AsyncImage(url: URL(string: user.avatar)) { phase in
                                     switch phase {
@@ -98,47 +99,47 @@ struct ProfileView: View {
                                             .clipShape(Circle())
                                     default:
                                         Circle()
-                                            .fill(Color.gray.opacity(0.3))
+                                            .fill(Theme.Colors.secondaryBackground)
                                             .frame(width: 120, height: 120)
                                             .overlay {
                                                 Image(systemName: "person.fill")
                                                     .font(.system(size: 48))
-                                                    .foregroundColor(.gray)
+                                                    .foregroundColor(Theme.Colors.textSecondary)
                                             }
                                     }
                                 }
-                                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                .shadow(color: Theme.Colors.shadow, radius: 8, x: 0, y: 4)
                                 
                                 // User Name
                                 Text(user.name)
-                                    .font(.title)
+                                    .font(Theme.Fonts.title)
                                     .fontWeight(.bold)
                                 
                                 // Places Saved Count
                                 Text("\(viewModel.interestedVenues.count) places saved")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
+                                    .font(Theme.Fonts.subheadline)
+                                    .foregroundColor(Theme.Colors.textSecondary)
                                 
                                 // User Bio
                                 if !user.displayBio.isEmpty {
                                     Text(user.displayBio)
-                                        .font(.body)
-                                        .foregroundColor(.secondary)
+                                        .font(Theme.Fonts.body)
+                                        .foregroundColor(Theme.Colors.textSecondary)
                                         .multilineTextAlignment(.center)
                                         .padding(.horizontal)
                                 }
                                 
                                 // User Interests
                                 if !user.displayInterests.isEmpty {
-                                    HStack(spacing: 8) {
+                                    HStack(spacing: Theme.Layout.smallSpacing) {
                                         ForEach(user.displayInterests, id: \.self) { interest in
                                             Text(interest.capitalized)
-                                                .font(.caption)
+                                                .font(Theme.Fonts.caption)
                                                 .fontWeight(.semibold)
                                                 .foregroundColor(.white)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 6)
-                                                .background(Color.blue)
+                                                .background(Theme.Colors.accent)
                                                 .clipShape(Capsule())
                                         }
                                     }
@@ -148,21 +149,21 @@ struct ProfileView: View {
                             
                             // Action Items Section
                             if !viewModel.actionItems.isEmpty {
-                                VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
                                     HStack {
                                         Text("Action Items")
-                                            .font(.title2)
+                                            .font(Theme.Fonts.title2)
                                             .fontWeight(.bold)
                                         
                                         Spacer()
                                         
                                         Text("\(viewModel.actionItems.count)")
-                                            .font(.caption)
+                                            .font(Theme.Fonts.caption)
                                             .fontWeight(.semibold)
                                             .foregroundColor(.white)
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 4)
-                                            .background(Color.blue)
+                                            .background(Theme.Colors.accent)
                                             .clipShape(Capsule())
                                     }
                                     .padding(.horizontal)
@@ -188,16 +189,16 @@ struct ProfileView: View {
                             
                             // Interested Venues Grid
                             if !viewModel.interestedVenues.isEmpty {
-                                VStack(alignment: .leading, spacing: 16) {
+                                VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
                                     Text("Saved Places")
-                                        .font(.title2)
+                                        .font(Theme.Fonts.title2)
                                         .fontWeight(.bold)
                                         .padding(.horizontal)
                                     
                                     LazyVGrid(columns: [
-                                        GridItem(.flexible(), spacing: 16),
-                                        GridItem(.flexible(), spacing: 16)
-                                    ], spacing: 16) {
+                                        GridItem(.flexible(), spacing: Theme.Layout.spacing),
+                                        GridItem(.flexible(), spacing: Theme.Layout.spacing)
+                                    ], spacing: Theme.Layout.spacing) {
                                         ForEach(viewModel.interestedVenues) { venue in
                                             NavigationLink(destination: VenueDetailView(venueId: venue.id)) {
                                                 VenueGridCard(venue: venue)
@@ -265,8 +266,8 @@ struct ActionItemCard: View {
     let onDismiss: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
+            HStack(spacing: Theme.Layout.spacing) {
                 // Venue Image
                 if let venue = actionItem.venue {
                     AsyncImage(url: URL(string: venue.image)) { phase in
@@ -276,14 +277,14 @@ struct ActionItemCard: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .frame(width: 60, height: 60)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
                         default:
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.2))
+                            RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius)
+                                .fill(Theme.Colors.secondaryBackground)
                                 .frame(width: 60, height: 60)
                                 .overlay {
                                     Image(systemName: "photo")
-                                        .foregroundColor(.gray)
+                                        .foregroundColor(Theme.Colors.textSecondary)
                                 }
                         }
                     }
@@ -291,20 +292,20 @@ struct ActionItemCard: View {
                     // Venue Info
                     VStack(alignment: .leading, spacing: 4) {
                         Text(venue.name)
-                            .font(.headline)
-                            .foregroundColor(.primary)
+                            .font(Theme.Fonts.headline)
+                            .foregroundColor(Theme.Colors.textPrimary)
                         
                         Text(venue.category)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(Theme.Fonts.caption)
+                            .foregroundColor(Theme.Colors.textSecondary)
                         
                         HStack(spacing: 4) {
                             Image(systemName: "person.2.fill")
-                                .font(.caption)
+                                .font(Theme.Fonts.caption)
                             Text("\(actionItem.interested_user_ids.count) interested")
-                                .font(.caption)
+                                .font(Theme.Fonts.caption)
                         }
-                        .foregroundColor(.blue)
+                        .foregroundColor(Theme.Colors.accent)
                     }
                     
                     Spacer()
@@ -313,53 +314,53 @@ struct ActionItemCard: View {
             
             // Description
             Text(actionItem.description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(Theme.Fonts.subheadline)
+                .foregroundColor(Theme.Colors.textSecondary)
             
             // Action Code
             Text(actionItem.action_code)
-                .font(.caption)
+                .font(Theme.Fonts.caption)
                 .fontWeight(.medium)
-                .foregroundColor(.blue)
+                .foregroundColor(Theme.Colors.accent)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.blue.opacity(0.1))
+                .background(Theme.Colors.accent.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 4))
             
             // Timestamp
             Text(relativeTime(from: actionItem.created_at))
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(Theme.Fonts.caption)
+                .foregroundColor(Theme.Colors.textSecondary)
             
             // Action Buttons
-            HStack(spacing: 12) {
+            HStack(spacing: Theme.Layout.spacing) {
                 Button(action: onComplete) {
                     Text("Mark Done")
-                        .font(.subheadline)
+                        .font(Theme.Fonts.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(Color.green)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .background(Theme.Colors.success)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
                 }
                 
                 Button(action: onDismiss) {
                     Text("Dismiss")
-                        .font(.subheadline)
+                        .font(Theme.Fonts.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(.primary)
+                        .foregroundColor(Theme.Colors.textPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(Color.gray.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .background(Theme.Colors.secondaryBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
                 }
             }
         }
-        .padding(16)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+        .padding(Theme.Layout.padding)
+        .background(Theme.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cornerRadius))
+        .shadow(color: Theme.Colors.shadow, radius: 8, x: 0, y: 2)
     }
     
     private func relativeTime(from dateString: String) -> String {
@@ -390,7 +391,7 @@ struct VenueGridCard: View {
     let venue: Venue
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Layout.smallSpacing) {
             // Venue Image
             AsyncImage(url: URL(string: venue.image)) { phase in
                 switch phase {
@@ -401,38 +402,38 @@ struct VenueGridCard: View {
                         .clipped()
                 case .empty:
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Theme.Colors.secondaryBackground)
                         .aspectRatio(1, contentMode: .fill)
                         .overlay {
                             ProgressView()
                         }
                 case .failure:
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Theme.Colors.secondaryBackground)
                         .aspectRatio(1, contentMode: .fill)
                         .overlay {
                             Image(systemName: "photo")
-                                .foregroundColor(.gray)
+                                .foregroundColor(Theme.Colors.textSecondary)
                         }
                 @unknown default:
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Theme.Colors.secondaryBackground)
                         .aspectRatio(1, contentMode: .fill)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.cornerRadius))
             
             // Venue Name
             Text(venue.name)
-                .font(.subheadline)
+                .font(Theme.Fonts.subheadline)
                 .fontWeight(.semibold)
-                .foregroundColor(.primary)
+                .foregroundColor(Theme.Colors.textPrimary)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+        .background(Theme.Colors.cardBackground)
+        .cornerRadius(Theme.Layout.cornerRadius)
+        .shadow(color: Theme.Colors.shadow, radius: 8, x: 0, y: 2)
     }
 }
 

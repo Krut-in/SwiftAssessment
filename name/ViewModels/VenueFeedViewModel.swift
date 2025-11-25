@@ -20,6 +20,7 @@
 //  - ObservableObject: Publishes state changes to SwiftUI views
 //  - @MainActor: Ensures all UI updates on main thread
 //  - Protocol-based APIService: Enables testing with mocks
+//  - Uses AppState for current user ID
 //  
 //  STATE PROPERTIES:
 //  - venues: Array of venue items to display
@@ -56,6 +57,7 @@
 //  @StateObject private var viewModel = VenueFeedViewModel()
 //  // ViewModel automatically manages all state
 //
+//
 
 import Foundation
 import Combine
@@ -87,13 +89,15 @@ class VenueFeedViewModel: ObservableObject {
     // MARK: - Private Properties
     
     private let apiService: APIServiceProtocol
+    private let appState: AppState
     private var cancellables = Set<AnyCancellable>()
     private var recommendationScores: [String: Double] = [:] // venueId -> score mapping
     
     // MARK: - Initialization
     
-    init(apiService: APIServiceProtocol = APIService()) {
+    init(apiService: APIServiceProtocol = APIService(), appState: AppState = .shared) {
         self.apiService = apiService
+        self.appState = appState
     }
     
     // MARK: - Public Methods
@@ -108,12 +112,12 @@ class VenueFeedViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            // Pass user_1 as the current user to get distance and friend interest calculations
-            let fetchedVenues = try await apiService.fetchVenues(userId: "user_1", filters: filters)
+            // Use current user ID from AppState
+            let fetchedVenues = try await apiService.fetchVenues(userId: appState.currentUserId, filters: filters)
             
             // Update UI on main thread
             await MainActor.run {
-                self.venues = sortVenuesByRecommendation(fetchedVenues)
+                self.venues = self.sortVenues(fetchedVenues)
                 self.isLoading = false
                 self.lastUpdated = Date()
             }
@@ -146,8 +150,7 @@ class VenueFeedViewModel: ObservableObject {
     /// Loads personalized recommendations for the current user
     /// Updates recommendations array and merges scores with venue list
     func loadRecommendations() async {
-        // Note: Using hardcoded user ID - in production, get from AppState/Auth
-        let userId = "user_1"
+        let userId = appState.currentUserId
         
         do {
             let fetchedRecommendations = try await apiService.fetchRecommendations(userId: userId)
@@ -165,8 +168,8 @@ class VenueFeedViewModel: ObservableObject {
                     uniqueKeysWithValues: fetchedRecommendations.map { ($0.venue.id, $0.score) }
                 )
                 
-                // Re-sort existing venues by recommendation score
-                self.venues = sortVenuesByRecommendation(self.venues)
+                // Re-sort existing venues based on current sort option
+                self.venues = self.sortVenues(self.venues)
             }
         } catch {
             // Silent fail for recommendations - they're supplementary
@@ -236,7 +239,42 @@ class VenueFeedViewModel: ObservableObject {
     
     // MARK: - Private Methods
     
+    /// Sorts venues based on the current sort option
+    private func sortVenues(_ venues: [VenueListItem]) -> [VenueListItem] {
+        switch filters.sortBy {
+        case .distance:
+            return venues.sorted {
+                // Sort by distance ascending (closest first)
+                // Treat nil distance as farthest
+                guard let dist1 = $0.distance_km else { return false }
+                guard let dist2 = $1.distance_km else { return true }
+                return dist1 < dist2
+            }
+            
+        case .popularity:
+            return venues.sorted {
+                // Sort by interested count descending (highest first)
+                if $0.interested_count != $1.interested_count {
+                    return $0.interested_count > $1.interested_count
+                }
+                // Secondary sort by name
+                return $0.name < $1.name
+            }
+            
+        case .name:
+            return venues.sorted {
+                // Sort by name ascending (A-Z)
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+            
+        case .friends:
+            // For now, fallback to popularity as friend data might be limited in list item
+            return venues.sorted { $0.interested_count > $1.interested_count }
+        }
+    }
+    
     /// Sorts venues by recommendation score (highest first), then by interested count
+    /// Used ONLY for the recommendation section or initial default sort if needed
     private func sortVenuesByRecommendation(_ venues: [VenueListItem]) -> [VenueListItem] {
         return venues.sorted { venue1, venue2 in
             let score1 = recommendationScores[venue1.id] ?? 0

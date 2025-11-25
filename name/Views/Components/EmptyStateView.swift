@@ -15,6 +15,7 @@
 //  - Consistent styling across all empty states
 //  - Smooth animations for appearance
 //  - Special variant for filtered results
+//  - Uses centralized Theme for consistent styling
 //  
 //  USAGE:
 //  EmptyStateView(
@@ -27,6 +28,7 @@
 //
 //  // Filtered results variant:
 //  EmptyStateView.filteredResults(onClearFilters: { ... })
+//
 //
 
 import SwiftUI
@@ -44,30 +46,31 @@ struct EmptyStateView: View {
     // MARK: - Body
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Theme.Layout.spacing) {
             Image(systemName: icon)
                 .font(.system(size: 64))
-                .foregroundColor(.gray.opacity(0.6))
+                .foregroundColor(Theme.Colors.textSecondary.opacity(0.6))
             
             Text(title)
-                .font(.title3)
+                .font(Theme.Fonts.title3)
                 .fontWeight(.semibold)
+                .foregroundColor(Theme.Colors.textPrimary)
             
             Text(message)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(Theme.Fonts.subheadline)
+                .foregroundColor(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             
             if let actionTitle = actionTitle, let action = action {
                 Button(action: action) {
                     Text(actionTitle)
-                        .font(.body)
+                        .font(Theme.Fonts.body)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color.accentColor)
+                        .background(Theme.Colors.primary)
                         .clipShape(Capsule())
                 }
                 .padding(.top, 8)
@@ -112,4 +115,3 @@ struct EmptyStateView: View {
         EmptyStateView.filteredResults(onClearFilters: { print("Clear filters") })
     }
 }
-

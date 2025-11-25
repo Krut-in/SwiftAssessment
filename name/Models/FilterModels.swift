@@ -30,7 +30,6 @@ enum SortOption: String, CaseIterable, Identifiable {
     case distance = "distance"
     case popularity = "popularity"
     case friends = "friends"
-    case recentlyAdded = "recentlyAdded"
     case name = "name"
     
     var id: String { rawValue }
@@ -43,8 +42,6 @@ enum SortOption: String, CaseIterable, Identifiable {
             return "Popularity"
         case .friends:
             return "Friends Interested"
-        case .recentlyAdded:
-            return "Recently Added"
         case .name:
             return "Name (A-Z)"
         }
@@ -58,8 +55,6 @@ enum SortOption: String, CaseIterable, Identifiable {
             return "heart.fill"
         case .friends:
             return "person.2.fill"
-        case .recentlyAdded:
-            return "clock.fill"
         case .name:
             return "textformat"
         }
