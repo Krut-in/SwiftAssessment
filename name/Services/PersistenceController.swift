@@ -47,7 +47,24 @@ class PersistenceController {
         
         container.loadPersistentStores { description, error in
             if let error = error {
-                fatalError("Unable to load CoreData persistent stores: \(error)")
+                // CRITICAL ERROR: Log the error and create in-memory store as fallback
+                print("❌ CRITICAL: Unable to load CoreData persistent stores: \(error)")
+                print("❌ Description: \(description)")
+                print("⚠️ Falling back to in-memory store - data will not persist!")
+                
+                // Create in-memory store as fallback
+                let storeDescription = NSPersistentStoreDescription()
+                storeDescription.type = NSInMemoryStoreType
+                self.container.persistentStoreDescriptions = [storeDescription]
+                
+                // Try loading in-memory store
+                self.container.loadPersistentStores { _, memoryError in
+                    if let memoryError = memoryError {
+                        // If even in-memory store fails, log critical error
+                        print("❌ FATAL: Even in-memory store failed to load: \(memoryError)")
+                        // App will continue but caching won't work
+                    }
+                }
             }
         }
         
@@ -229,6 +246,13 @@ class PersistenceController {
         do {
             try context.execute(venueDelete)
             try context.execute(interestDelete)
+            
+            // Save context after batch delete to ensure cleanup
+            try context.save()
+            
+            // Reset context to clear any cached objects
+            context.reset()
+            
             print("💾 Cache cleared")
         } catch {
             print("❌ Failed to clear cache: \(error)")

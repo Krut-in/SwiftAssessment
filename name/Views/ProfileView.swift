@@ -49,6 +49,10 @@ struct ProfileView: View {
     @StateObject private var viewModel = ProfileViewModel()
     @ObservedObject private var appState = AppState.shared
     
+    // MARK: - State
+    
+    @State private var showUserSwitcher = false
+    
     // MARK: - Body
     
     var body: some View {
@@ -259,6 +263,25 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showUserSwitcher = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.2.circle.fill")
+                                .font(.title3)
+                            Text("Switch User")
+                                .font(Theme.Fonts.caption)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundColor(Theme.Colors.primary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showUserSwitcher) {
+                UserSwitcherView()
+            }
             .task {
                 // Load profile once when view appears in NavigationStack
                 // .task runs on view appearance and cancels automatically on disappearance

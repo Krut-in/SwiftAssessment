@@ -124,26 +124,20 @@ class VenueDetailViewModel: ObservableObject {
         do {
             let response = try await apiService.fetchVenueDetail(venueId: venueId)
             
-            // Update UI on main thread
-            await MainActor.run {
-                self.venue = response.venue
-                self.interestedUsers = response.interested_users
-                // Check if current user is in interested users
-                self.isInterested = self.appState.isInterested(in: self.venueId)
-                self.isLoading = false
-            }
+            // Update UI - already on main thread due to @MainActor
+            self.venue = response.venue
+            self.interestedUsers = response.interested_users
+            // Check if current user is in interested users
+            self.isInterested = self.appState.isInterested(in: self.venueId)
+            self.isLoading = false
         } catch let error as APIError {
             // Handle API-specific errors
-            await MainActor.run {
-                self.errorMessage = error.errorDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.errorDescription
+            self.isLoading = false
         } catch {
             // Handle unexpected errors
-            await MainActor.run {
-                self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+            self.isLoading = false
         }
     }
     
@@ -160,33 +154,27 @@ class VenueDetailViewModel: ObservableObject {
             await loadVenueDetail()
             
             // Show success feedback (action item notification handled by AppState)
-            await MainActor.run {
-                self.successMessage = response.message ?? "Interest updated successfully"
-            }
+            self.successMessage = response.message ?? "Interest updated successfully"
             
             // Clear success message after 2 seconds
-            Task { @MainActor in
+            Task { [weak self] in
                 do {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
-                    self.successMessage = nil
+                    await MainActor.run {
+                        self?.successMessage = nil
+                    }
                 } catch {
                     // Task cancelled - safe to ignore
                 }
             }
             
-            await MainActor.run {
-                self.isTogglingInterest = false
-            }
+            self.isTogglingInterest = false
         } catch let error as APIError {
-            await MainActor.run {
-                self.errorMessage = error.errorDescription
-                self.isTogglingInterest = false
-            }
+            self.errorMessage = error.errorDescription
+            self.isTogglingInterest = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to update interest: \(error.localizedDescription)"
-                self.isTogglingInterest = false
-            }
+            self.errorMessage = "Failed to update interest: \(error.localizedDescription)"
+            self.isTogglingInterest = false
         }
     }
     

@@ -84,6 +84,9 @@ struct RecommendedVenueCardView: View {
     /// Animation state for heart button scale effect
     @State private var isAnimating = false
     
+    /// Controls score breakdown popover display
+    @State private var showScoreBreakdown = false
+    
     // MARK: - Initialization
     
     /// Initializes the recommended venue card with recommendation data
@@ -163,23 +166,43 @@ struct RecommendedVenueCardView: View {
                 }
                 .clipped()
                 
-                // MARK: Recommendation Score Badge
-                Text(scoreText)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.green.opacity(0.8), Color.teal.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                // MARK: Recommendation Score Badge with Info Button
+                HStack(spacing: 6) {
+                    Text(scoreText)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    // Info button (only show if breakdown available)
+                    if recommendation.score_breakdown != nil {
+                        Button {
+                            showScoreBreakdown.toggle()
+                        } label: {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    LinearGradient(
+                        colors: [Color.green.opacity(0.8), Color.teal.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
-                    .clipShape(Capsule())
-                    .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 2)
-                    .padding(12)
-                    .accessibilityLabel("Recommendation score \(scoreText) out of 10")
+                )
+                .clipShape(Capsule())
+                .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 2)
+                .padding(12)
+                .accessibilityLabel("Recommendation score \(scoreText) out of 10")
+                .popover(isPresented: $showScoreBreakdown) {
+                    if let breakdown = recommendation.score_breakdown {
+                        ScoreBreakdownView(breakdown: breakdown)
+                            .presentationCompactAdaptation(.popover)
+                    }
+                }
             }
             
             // MARK: Venue Info Section
@@ -388,7 +411,13 @@ struct RecommendedVenueCardView: View {
         reason: "Popular venue, Matches your interests",
         already_interested: false,
         friends_interested: 3,
-        total_interested: 4
+        total_interested: 4,
+        score_breakdown: ScoreBreakdown(
+            popularity: 25,
+            categoryMatch: 30,
+            friendSignal: 25,
+            proximity: 20
+        )
     ))
     .padding()
 }

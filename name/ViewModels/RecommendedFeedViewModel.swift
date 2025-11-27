@@ -140,25 +140,19 @@ class RecommendedFeedViewModel: ObservableObject {
             // Use current user ID from AppState
             let fetchedRecommendations = try await apiService.fetchRecommendations(userId: appState.currentUserId)
             
-            // Update UI on main thread
-            await MainActor.run {
-                // Store ALL recommendations (no limit of 3)
-                self.recommendations = fetchedRecommendations
-                self.isLoading = false
-                self.lastUpdated = Date()
-            }
+            // Update UI - already on main thread due to @MainActor
+            // Store ALL recommendations (no limit of 3)
+            self.recommendations = fetchedRecommendations
+            self.isLoading = false
+            self.lastUpdated = Date()
         } catch let error as APIError {
             // Handle API-specific errors
-            await MainActor.run {
-                self.errorMessage = error.errorDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.errorDescription
+            self.isLoading = false
         } catch {
             // Handle unexpected errors
-            await MainActor.run {
-                self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+            self.isLoading = false
         }
     }
     

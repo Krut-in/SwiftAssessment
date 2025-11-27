@@ -40,7 +40,7 @@ def action_item_agent(
     Creates an action item when interest threshold is reached.
     
     Action items are persistent records that users can track and manage.
-    When 4+ users are interested, creates an action item with a unique code
+    When 3+ users are interested, creates an action item with a unique code
     and description encouraging coordination.
     
     Args:
@@ -58,8 +58,9 @@ def action_item_agent(
         - action_type (str): Type of action - "book_venue" or "visit_venue"
         - interested_user_ids (List[str]): List of interested users
         - threshold_met (bool): Whether threshold was met
+        - notification_payload (dict): Push notification data (if created)
     """
-    threshold = 4  # Trigger when 4+ users interested
+    threshold = 3  # Trigger when 3+ users interested (Sprint 2 requirement)
     user_count = len(interested_user_ids)
     
     # Check if threshold is met
@@ -87,6 +88,26 @@ def action_item_agent(
     ]
     description = random.choice(descriptions)
     
+    # Create notification payload for push notifications
+    notification_title = f"Booking Opportunity at {venue_name}" if venue_name else "Booking Opportunity"
+    notification_body = f"{user_count} of your friends are interested! Time to book."
+    
+    notification_payload = {
+        "title": notification_title,
+        "body": notification_body,
+        "venue_id": venue_id,
+        "venue_name": venue_name,
+        "action_code": action_code,
+        "interested_count": user_count,
+        "deep_link": f"luna://venues/{venue_id}"
+    }
+    
+    # Log notification payload (APNs integration would happen here in production)
+    print(f"🔔 Notification Trigger: {notification_title}")
+    print(f"   Body: {notification_body}")
+    print(f"   Recipients: {interested_user_ids}")
+    print(f"   Deep Link: luna://venues/{venue_id}")
+    
     return {
         "action_item_created": True,
         "action_item_id": action_item_id,
@@ -95,5 +116,6 @@ def action_item_agent(
         "action_type": action_type,
         "interested_user_ids": interested_user_ids,
         "threshold_met": True,
-        "created_at": datetime.now()  # Return datetime object, not ISO string
+        "created_at": datetime.now(),  # Return datetime object, not ISO string
+        "notification_payload": notification_payload
     }

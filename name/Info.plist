@@ -22,5 +22,18 @@
 	</dict>
 	<key>CFBundleDisplayName</key>
 	<string>Luna</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>krutin.name</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>luna</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

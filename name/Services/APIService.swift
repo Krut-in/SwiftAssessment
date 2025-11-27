@@ -118,13 +118,19 @@ class APIService: ObservableObject, APIServiceProtocol {
     nonisolated init(baseURL: String = "http://localhost:8000", session: URLSession = .shared) {
         self.baseURL = baseURL
         
-        // Configure session with timeout for production
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30.0
-        configuration.timeoutIntervalForResource = 60.0
-        configuration.waitsForConnectivity = true
-        
-        self.session = URLSession(configuration: configuration)
+        // Use custom session with production configuration if using shared session
+        // Otherwise use injected session (e.g., for testing)
+        if session === URLSession.shared {
+            let configuration = URLSessionConfiguration.default
+            configuration.timeoutIntervalForRequest = 30.0
+            configuration.timeoutIntervalForResource = 60.0
+            configuration.waitsForConnectivity = true
+            
+            self.session = URLSession(configuration: configuration)
+        } else {
+            // Use injected session (for testing or custom configs)
+            self.session = session
+        }
         
         // Configure JSON decoder for date handling
         self.decoder = JSONDecoder()

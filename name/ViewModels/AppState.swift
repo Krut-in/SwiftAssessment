@@ -40,8 +40,8 @@ class AppState: ObservableObject {
     
     // MARK: - Published Properties
     
-    /// Current user ID (hardcoded for MVP)
-    @Published var currentUserId: String = "user_1"
+    /// Current user ID (from authentication service)
+    @Published var currentUserId: String = ""
     
     /// Set of venue IDs that the current user is interested in
     @Published var interestedVenueIds: Set<String> = []
@@ -56,18 +56,27 @@ class AppState: ObservableObject {
     /// Selected tab index for tab navigation
     @Published var selectedTab: Int = 0
     
+    /// Deep link venue ID for navigation
+    @Published var deepLinkVenueId: String?
+    
     // MARK: - Private Properties
     
     private let apiService: APIServiceProtocol
+    private let authService: AuthenticationServiceProtocol
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
     
-    nonisolated private init(apiService: APIServiceProtocol = APIService()) {
+    nonisolated private init(
+        apiService: APIServiceProtocol = APIService(),
+        authService: AuthenticationServiceProtocol = MockAuthenticationService.shared
+    ) {
         self.apiService = apiService
+        self.authService = authService
         
-        // Load user's interested venues on initialization
+        // Initialize currentUserId from auth service
         Task { @MainActor in
+            self.currentUserId = authService.getCurrentUserId()
             await loadUserInterests()
         }
     }
@@ -79,10 +88,9 @@ class AppState: ObservableObject {
         do {
             let response = try await apiService.fetchUserProfile(userId: currentUserId)
             
-            await MainActor.run {
-                self.interestedVenueIds = Set(response.interested_venues.map { $0.id })
-                self.actionItemCount = response.action_items.count
-            }
+            // Update state - already on main thread due to @MainActor
+            self.interestedVenueIds = Set(response.interested_venues.map { $0.id })
+            self.actionItemCount = response.action_items.count
         } catch {
             // Silent fail - we'll show interest state as empty
             print("Failed to load user interests: \(error.localizedDescription)")
@@ -155,5 +163,34 @@ class AppState: ObservableObject {
     /// - Returns: True if user is interested, false otherwise
     func isInterested(in venueId: String) -> Bool {
         interestedVenueIds.contains(venueId)
+    }
+    
+    /// Switches to a different user and reloads data
+    /// - Parameter userId: The user ID to switch to
+    func switchUser(to userId: String) async {
+        authService.switchUser(to: userId)
+        currentUserId = authService.getCurrentUserId()
+        
+        // Clear current state
+        interestedVenueIds.removeAll()
+        actionItemCount = 0
+        
+        // Reload data for new user
+        await loadUserInterests()
+    }
+    
+    /// Handles deep link navigation
+    /// - Parameter url: The deep link URL to handle
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme == "luna" else { return }
+        
+        let pathComponents = url.pathComponents.filter { $0 != "/" }
+        
+        // Parse luna://venues/{venue_id}
+        if pathComponents.count == 2,
+           pathComponents[0] == "venues" {
+            deepLinkVenueId = pathComponents[1]
+            print("🔗 Deep link: Opening venue \(pathComponents[1])")
+        }
     }
 }

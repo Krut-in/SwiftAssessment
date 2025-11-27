@@ -116,11 +116,9 @@ class VenueFeedViewModel: ObservableObject {
         // Load from cache first for instant UI
         if hasCached {
             let cachedVenus = persistence.fetchCachedVenues()
-            await MainActor.run {
-                self.venues = self.sortVenues(cachedVenus)
-                if let cacheTime = persistence.getCacheTimestamp() {
-                    self.lastUpdated = cacheTime
-                }
+            self.venues = self.sortVenues(cachedVenus)
+            if let cacheTime = persistence.getCacheTimestamp() {
+                self.lastUpdated = cacheTime
             }
         }
         
@@ -135,30 +133,24 @@ class VenueFeedViewModel: ObservableObject {
             // Save to cache for offline access
             persistence.saveVenues(fetchedVenues)
             
-            // Update UI on main thread
-            await MainActor.run {
-                self.venues = self.sortVenues(fetchedVenues)
-                self.isLoading = false
-                self.lastUpdated = Date()
-            }
+            // Update UI - already on main thread due to @MainActor
+            self.venues = self.sortVenues(fetchedVenues)
+            self.isLoading = false
+            self.lastUpdated = Date()
         } catch let error as APIError {
             // Handle API-specific errors
-            await MainActor.run {
-                // Only show error if we don't have cached data
-                if !hasCached {
-                    self.errorMessage = error.errorDescription
-                }
-                self.isLoading = false
+            // Only show error if we don't have cached data
+            if !hasCached {
+                self.errorMessage = error.errorDescription
             }
+            self.isLoading = false
         } catch {
             // Handle unexpected errors
-            await MainActor.run {
-                // Only show error if we don't have cached data
-                if !hasCached {
-                    self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                }
-                self.isLoading = false
+            // Only show error if we don't have cached data
+            if !hasCached {
+                self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
             }
+            self.isLoading = false
         }
     }
     

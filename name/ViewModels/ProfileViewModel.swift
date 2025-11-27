@@ -110,26 +110,21 @@ class ProfileViewModel: ObservableObject {
         do {
             let response = try await apiService.fetchUserProfile(userId: appState.currentUserId)
             
-            await MainActor.run {
-                self.user = response.user
-                self.interestedVenues = response.interested_venues
-                self.actionItems = response.action_items
-                self.isLoading = false
-                self.lastUpdated = Date()
-                
-                // Update global action item count for badge
-                appState.actionItemCount = response.action_items.count
-            }
+            // Update state - already on main thread due to @MainActor
+            self.user = response.user
+            self.interestedVenues = response.interested_venues
+            self.actionItems = response.action_items
+            self.isLoading = false
+            self.lastUpdated = Date()
+            
+            // Update global action item count for badge
+            appState.actionItemCount = response.action_items.count
         } catch let error as APIError {
-            await MainActor.run {
-                self.errorMessage = error.errorDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.errorDescription
+            self.isLoading = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+            self.isLoading = false
         }
     }
     
@@ -139,15 +134,11 @@ class ProfileViewModel: ObservableObject {
         do {
             _ = try await apiService.completeActionItem(itemId: itemId, userId: appState.currentUserId)
             
-            // Remove from local list
-            await MainActor.run {
-                actionItems.removeAll { $0.id == itemId }
-                appState.actionItemCount = actionItems.count
-            }
+            // Remove from local list - already on main thread due to @MainActor
+            actionItems.removeAll { $0.id == itemId }
+            appState.actionItemCount = actionItems.count
         } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to complete action item: \(error.localizedDescription)"
-            }
+            self.errorMessage = "Failed to complete action item: \(error.localizedDescription)"
         }
     }
     
@@ -157,15 +148,11 @@ class ProfileViewModel: ObservableObject {
         do {
             _ = try await apiService.dismissActionItem(itemId: itemId, userId: appState.currentUserId)
             
-            // Remove from local list
-            await MainActor.run {
-                actionItems.removeAll { $0.id == itemId }
-                appState.actionItemCount = actionItems.count
-            }
+            // Remove from local list - already on main thread due to @MainActor
+            actionItems.removeAll { $0.id == itemId }
+            appState.actionItemCount = actionItems.count
         } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to dismiss action item: \(error.localizedDescription)"
-            }
+            self.errorMessage = "Failed to dismiss action item: \(error.localizedDescription)"
         }
     }
     

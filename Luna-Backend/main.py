@@ -276,27 +276,28 @@ async def calculate_recommendation_score(session, user_id: str, venue_id: str) -
     
     CRITICAL: Score is calculated based on OTHER users' interests only.
     This ensures the score remains stable when the current user toggles their interest.
+async def calculate_recommendation_score(session, user_id: str, venue_id: str):
+    """
+    Calculate recommendation score for a venue based on user preferences.
     
-    Scoring algorithm (out of 10 points total):
-    - Factor 1: Popularity (30% weight) - min(other_users_interested / 3, 1.0) * 3
-    - Factor 2: Category match (25% weight) - 1.0 if match, else 0.0, * 2.5
-    - Factor 3: Friend interest (25% weight) - min(friends_interested / 3, 1.0) * 2.5
-    - Factor 4: Proximity (20% weight) - distance-based score (1.0 to 0.2) * 2
+    CRITICAL: Score is based on OTHER users' interests, excluding the current user.
+    This ensures scores don't change when user toggles their own interest.
     
-    Args:
-        session: Database session
-        user_id: The ID of the user
-        venue_id: The ID of the venue
-        
+    Scoring factors (out of 10 points):
+    - Popularity (30% = 3.0 points) based on OTHER users interested
+    - Category match (25% = 2.5 points) based on user interests
+    - Friend interest (25% = 2.5 points) based on friends interested
+    - Proximity (20% = 2.0 points) based on distance from user
+    
     Returns:
-        Tuple of (score, reason string, friends_interested_count, total_interested_count, distance_km)
+        Tuple of (score, reason, friends_interested, total_interested, distance_km, score_breakdown)
     """
     # Get user and venue
     user = await session.get(UserDB, user_id)
     venue = await session.get(VenueDB, venue_id)
     
     if not user or not venue:
-        return 0.0, "Invalid user or venue", 0, 0, None
+        return 0.0, "Invalid user or venue", 0, 0, None, {}
     
     score = 0.0
     reasons = []
@@ -364,7 +365,16 @@ async def calculate_recommendation_score(session, user_id: str, venue_id: str) -
     # Generate reason string
     reason = ", ".join(reasons) if reasons else "New venue to explore"
     
-    return score, reason, friends_interested, total_interested_count, distance_km
+    # Calculate score breakdown percentages (out of 100)
+    # Convert scores to percentages based on maximum possible score (10)
+    score_breakdown = {
+        "popularity": round((popularity_score / 3.0) * 30, 1),  # Max 30%
+        "category_match": round((category_score / 2.5) * 25, 1),  # Max 25%
+        "friend_signal": round((friend_score / 2.5) * 25, 1),  # Max 25%
+        "proximity": round((proximity_score / 2.0) * 20, 1)  # Max 20%
+    }
+    
+    return score, reason, friends_interested, total_interested_count, distance_km, score_breakdown
 
 
 # API Endpoints
@@ -871,7 +881,7 @@ async def get_recommendations(user_id: str):
         # Calculate scores for ALL venues
         recommendations = []
         for venue in venues:
-            score, reason, friends_interested, total_interested, distance_km = await calculate_recommendation_score(
+            score, reason, friends_interested, total_interested, distance_km, score_breakdown = await calculate_recommendation_score(
                 session, user_id, venue.id
             )
             
@@ -893,7 +903,8 @@ async def get_recommendations(user_id: str):
                 "reason": reason,
                 "already_interested": already_interested,
                 "friends_interested": friends_interested,
-                "total_interested": total_interested
+                "total_interested": total_interested,
+                "score_breakdown": score_breakdown
             })
         
         # Sort by score descending only
