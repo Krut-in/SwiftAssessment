@@ -10,6 +10,10 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 
+![iOS CI](https://github.com/Krut-in/SwiftAssessment/workflows/iOS%20CI/badge.svg)
+
+![Backend CI](https://github.com/Krut-in/SwiftAssessment/workflows/Backend%20CI/badge.svg)
+
 ## 📬 Quick Links
 
 - **GitHub:** [Krut-in/SwiftAssessment](https://github.com/Krut-in/SwiftAssessment)
