@@ -141,9 +141,12 @@ class InterestDB(Base):
     venue = relationship("VenueDB", back_populates="interests")
     
     # Indexes for query performance
+    # Single column indexes for filtering
+    # Compound index for checking if user is interested in specific venue
     __table_args__ = (
         Index('idx_interest_user', 'user_id'),
         Index('idx_interest_venue', 'venue_id'),
+        Index('idx_interest_user_venue', 'user_id', 'venue_id'),  # Compound index for lookup
     )
     
     def __repr__(self):

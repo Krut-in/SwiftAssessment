@@ -91,25 +91,7 @@ class RecommendedFeedViewModel: ObservableObject {
     
     /// Returns formatted relative time since last update
     var lastUpdatedText: String {
-        guard let lastUpdated = lastUpdated else {
-            return "Never"
-        }
-        
-        let now = Date()
-        let seconds = Int(now.timeIntervalSince(lastUpdated))
-        
-        if seconds < 60 {
-            return "Just now"
-        } else if seconds < 3600 {
-            let minutes = seconds / 60
-            return "\(minutes) minute\(minutes == 1 ? "" : "s") ago"
-        } else if seconds < 86400 {
-            let hours = seconds / 3600
-            return "\(hours) hour\(hours == 1 ? "" : "s") ago"
-        } else {
-            let days = seconds / 86400
-            return "\(days) day\(days == 1 ? "" : "s") ago"
-        }
+        lastUpdated?.relativeTimeString() ?? "Never"
     }
     
     // MARK: - Private Properties

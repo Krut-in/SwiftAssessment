@@ -111,38 +111,18 @@ struct VenueCardView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // MARK: Venue Image
-            AsyncImage(url: URL(string: venue.image)) { phase in
-                switch phase {
-                case .empty:
-                    // Placeholder while loading
-                    Rectangle()
-                        .fill(Theme.Colors.secondaryBackground)
-                        .aspectRatio(4/3, contentMode: .fill)
-                        .overlay {
-                            ProgressView()
-                        }
-                case .success(let image):
-                    // Successfully loaded image
-                    image
-                        .resizable()
-                        .aspectRatio(4/3, contentMode: .fill)
-                case .failure:
-                    // Failed to load image - show placeholder
-                    Rectangle()
-                        .fill(Theme.Colors.secondaryBackground)
-                        .aspectRatio(4/3, contentMode: .fill)
-                        .overlay {
-                            Image(systemName: "photo")
-                                .font(Theme.Fonts.largeTitle)
-                                .foregroundColor(Theme.Colors.textSecondary)
-                        }
-                @unknown default:
-                    // Fallback for future AsyncImagePhase cases
-                    Rectangle()
-                        .fill(Theme.Colors.secondaryBackground)
-                        .aspectRatio(4/3, contentMode: .fill)
-                }
+            // MARK: Venue Image (Cached for offline support)
+            CachedAsyncImage(url: venue.image) { image in
+                image
+                    .resizable()
+                    .aspectRatio(4/3, contentMode: .fill)
+            } placeholder: {
+                Rectangle()
+                    .fill(Theme.Colors.secondaryBackground)
+                    .aspectRatio(4/3, contentMode: .fill)
+                    .overlay {
+                        ProgressView()
+                    }
             }
             .clipped()
             

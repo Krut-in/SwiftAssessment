@@ -152,11 +152,16 @@ async def get_interested_count(session, venue_id: str) -> int:
     Returns:
         Count of users interested in this venue
     """
-    result = await session.execute(
-        select(func.count(InterestDB.user_id))
-        .where(InterestDB.venue_id == venue_id)
-    )
-    return result.scalar() or 0
+    try:
+        result = await session.execute(
+            select(func.count(InterestDB.user_id))
+            .where(InterestDB.venue_id == venue_id)
+        )
+        return result.scalar() or 0
+    except Exception as e:
+        logger.error(f"Failed to get interested count for venue {venue_id}: {e}")
+        return 0  # Fail gracefully with 0 count
+
 
 
 async def get_interested_users(session, venue_id: str) -> List[Dict]:
@@ -170,21 +175,25 @@ async def get_interested_users(session, venue_id: str) -> List[Dict]:
     Returns:
         List of simplified user objects (id, name, avatar only)
     """
-    result = await session.execute(
-        select(UserDB)
-        .join(InterestDB, InterestDB.user_id == UserDB.id)
-        .where(InterestDB.venue_id == venue_id)
-    )
-    users = result.scalars().all()
-    
-    return [
-        {
-            "id": user.id,
-            "name": user.name,
-            "avatar": user.avatar
-        }
-        for user in users
-    ]
+    try:
+        result = await session.execute(
+            select(UserDB)
+            .join(InterestDB, InterestDB.user_id == UserDB.id)
+            .where(InterestDB.venue_id == venue_id)
+        )
+        users = result.scalars().all()
+        
+        return [
+            {
+                "id": user.id,
+                "name": user.name,
+                "avatar": user.avatar
+            }
+            for user in users
+        ]
+    except Exception as e:
+        logger.error(f"Failed to get interested users for venue {venue_id}: {e}")
+        return []  # Fail gracefully with empty list
 
 
 async def get_user_interested_venues(session, user_id: str) -> List[Dict]:
@@ -198,27 +207,31 @@ async def get_user_interested_venues(session, user_id: str) -> List[Dict]:
     Returns:
         List of full venue objects with interested counts
     """
-    result = await session.execute(
-        select(VenueDB)
-        .join(InterestDB, InterestDB.venue_id == VenueDB.id)
-        .where(InterestDB.user_id == user_id)
-    )
-    venues = result.scalars().all()
-    
-    venues_list = []
-    for venue in venues:
-        interested_count = await get_interested_count(session, venue.id)
-        venues_list.append({
-            "id": venue.id,
-            "name": venue.name,
-            "category": venue.category,
-            "description": venue.description,
-            "image": venue.image,
-            "address": venue.address,
-            "interested_count": interested_count
-        })
-    
-    return venues_list
+    try:
+        result = await session.execute(
+            select(VenueDB)
+            .join(InterestDB, InterestDB.venue_id == VenueDB.id)
+            .where(InterestDB.user_id == user_id)
+        )
+        venues = result.scalars().all()
+        
+        venues_list = []
+        for venue in venues:
+            interested_count = await get_interested_count(session, venue.id)
+            venues_list.append({
+                "id": venue.id,
+                "name": venue.name,
+                "category": venue.category,
+                "description": venue.description,
+                "image": venue.image,
+                "address": venue.address,
+                "interested_count": interested_count
+            })
+        
+        return venues_list
+    except Exception as e:
+        logger.error(f"Failed to get interested venues for user {user_id}: {e}")
+        return []  # Fail gracefully with empty list
 
 
 async def count_friends_interested(session, user_id: str, venue_id: str) -> int:
@@ -235,47 +248,184 @@ async def count_friends_interested(session, user_id: str, venue_id: str) -> int:
     Returns:
         Count of friends interested in this venue
     """
-    # Get all friend IDs (bidirectional)
-    result = await session.execute(
-        select(FriendshipDB)
-        .where(
-            or_(
-                FriendshipDB.user_id == user_id,
-                FriendshipDB.friend_id == user_id
+    try:
+        # Get all friend IDs (bidirectional)
+        result = await session.execute(
+            select(FriendshipDB)
+            .where(
+                or_(
+                    FriendshipDB.user_id == user_id,
+                    FriendshipDB.friend_id == user_id
+                )
             )
         )
-    )
-    friendships = result.scalars().all()
-    
-    friend_ids = set()
-    for friendship in friendships:
-        if friendship.user_id == user_id:
-            friend_ids.add(friendship.friend_id)
-        else:
-            friend_ids.add(friendship.user_id)
-    
-    # Count how many friends are interested in this venue
-    if not friend_ids:
-        return 0
-    
-    result = await session.execute(
-        select(func.count(InterestDB.user_id))
-        .where(
-            and_(
-                InterestDB.venue_id == venue_id,
-                InterestDB.user_id.in_(friend_ids)
+        friendships = result.scalars().all()
+        
+        friend_ids = set()
+        for friendship in friendships:
+            if friendship.user_id == user_id:
+                friend_ids.add(friendship.friend_id)
+            else:
+                friend_ids.add(friendship.user_id)
+        
+        # Count how many friends are interested in this venue
+        if not friend_ids:
+            return 0
+        
+        result = await session.execute(
+            select(func.count(InterestDB.user_id))
+            .where(
+                and_(
+                    InterestDB.venue_id == venue_id,
+                    InterestDB.user_id.in_(friend_ids)
+                )
             )
         )
-    )
-    return result.scalar() or 0
+        return result.scalar() or 0
+    except Exception as e:
+        logger.error(f"Failed to count friends interested for user {user_id}, venue {venue_id}: {e}")
+        return 0  # Fail gracefully with 0 count
 
 
-async def calculate_recommendation_score(session, user_id: str, venue_id: str) -> tuple[float, str, int, int, Optional[float]]:
+async def batch_get_interested_counts(session, venue_ids: List[str]) -> Dict[str, int]:
     """
-    Calculate recommendation score for a venue based on four factors.
+    Batch load interested counts for multiple venues in a single query.
     
-    CRITICAL: Score is calculated based on OTHER users' interests only.
-    This ensures the score remains stable when the current user toggles their interest.
+    Optimizes N+1 query problem by loading all counts at once.
+    
+    Args:
+        session: Database session
+        venue_ids: List of venue IDs to get counts for
+        
+    Returns:
+        Dictionary mapping venue_id to interested count
+    """
+    try:
+        if not venue_ids:
+            return {}
+        
+        result = await session.execute(
+            select(
+                InterestDB.venue_id,
+                func.count(InterestDB.user_id).label('count')
+            )
+            .where(InterestDB.venue_id.in_(venue_ids))
+            .group_by(InterestDB.venue_id)
+        )
+        
+        # Convert to dictionary
+        counts = {venue_id: count for venue_id, count in result.all()}
+        
+        # Ensure all requested venue_ids are in result (with 0 if no interests)
+        return {venue_id: counts.get(venue_id, 0) for venue_id in venue_ids}
+    except Exception as e:
+        logger.error(f"Failed to batch get interested counts: {e}")
+        # Return 0 for all venues on error
+        return {venue_id: 0 for venue_id in venue_ids}
+
+
+async def batch_count_friends_interested(session, user_id: str, venue_ids: List[str]) -> Dict[str, int]:
+    """
+    Batch load friend-interested counts for multiple venues in a single set of queries.
+    
+    Optimizes N+1 query problem for friend interest calculations.
+    
+    Args:
+        session: Database session
+        user_id: The ID of the current user
+        venue_ids: List of venue IDs to check
+        
+    Returns:
+        Dictionary mapping venue_id to friends interested count
+    """
+    try:
+        if not venue_ids:
+            return {}
+        
+        # Get all friend IDs (bidirectional) - single query
+        result = await session.execute(
+            select(FriendshipDB)
+            .where(
+                or_(
+                    FriendshipDB.user_id == user_id,
+                    FriendshipDB.friend_id == user_id
+                )
+            )
+        )
+        friendships = result.scalars().all()
+        
+        friend_ids = set()
+        for friendship in friendships:
+            if friendship.user_id == user_id:
+                friend_ids.add(friendship.friend_id)
+            else:
+                friend_ids.add(friendship.user_id)
+        
+        if not friend_ids:
+            return {venue_id: 0 for venue_id in venue_ids}
+        
+        # Count friends interested for all venues - single query
+        result = await session.execute(
+            select(
+                InterestDB.venue_id,
+                func.count(InterestDB.user_id).label('count')
+            )
+            .where(
+                and_(
+                    InterestDB.venue_id.in_(venue_ids),
+                    InterestDB.user_id.in_(friend_ids)
+                )
+            )
+            .group_by(InterestDB.venue_id)
+        )
+        
+        counts = {venue_id: count for venue_id, count in result.all()}
+        
+        # Ensure all requested venue_ids are in result
+        return {venue_id: counts.get(venue_id, 0) for venue_id in venue_ids}
+    except Exception as e:
+        logger.error(f"Failed to batch count friends interested: {e}")
+        return {venue_id: 0 for venue_id in venue_ids}
+
+
+async def batch_check_user_interests(session, user_id: str, venue_ids: List[str]) -> Dict[str, bool]:
+    """
+    Batch check if user is interested in multiple venues.
+    
+    Optimizes N+1 query problem for user interest checks.
+    
+    Args:
+        session: Database session
+        user_id: The ID of the user
+        venue_ids: List of venue IDs to check
+        
+    Returns:
+        Dictionary mapping venue_id to boolean (True if interested)
+    """
+    try:
+        if not venue_ids:
+            return {}
+        
+        result = await session.execute(
+            select(InterestDB.venue_id)
+            .where(
+                and_(
+                    InterestDB.user_id == user_id,
+                    InterestDB.venue_id.in_(venue_ids)
+                )
+            )
+        )
+        
+        interested_venue_ids = {row[0] for row in result.all()}
+        
+        return {venue_id: venue_id in interested_venue_ids for venue_id in venue_ids}
+    except Exception as e:
+        logger.error(f"Failed to batch check user interests: {e}")
+        return {venue_id: False for venue_id in venue_ids}
+
+
+
+
 async def calculate_recommendation_score(session, user_id: str, venue_id: str):
     """
     Calculate recommendation score for a venue based on user preferences.
@@ -444,39 +594,40 @@ async def get_venues(
         result = await session.execute(query)
         venues_db = result.scalars().all()
         
-        # Build venue list with all data
+        # PERFORMANCE OPTIMIZATION: Batch load all data to avoid N+1 queries
+        # Old approach: 3 queries per venue (interested_count, friends_interested, user_interested)
+        # New approach: 3 queries total regardless of venue count
+        
+        venue_ids = [venue.id for venue in venues_db]
+        
+        # Batch load interested counts for all venues (1 query)
+        interested_counts = await batch_get_interested_counts(session, venue_ids)
+        
+        # Batch load friend-interested counts if user provided (2 queries max)
+        friends_interested_counts = {}
+        user_interests = {}
+        if user and user_id:
+            friends_interested_counts = await batch_count_friends_interested(session, user_id, venue_ids)
+            user_interests = await batch_check_user_interests(session, user_id, venue_ids)
+        
+        # Build venue list with all data (no queries in loop!)
         venues = []
         for venue in venues_db:
-            interested_count = await get_interested_count(session, venue.id)
             venue_data = {
                 "id": venue.id,
                 "name": venue.name,
                 "category": venue.category,
                 "image": venue.image,
-                "interested_count": interested_count,
+                "interested_count": interested_counts.get(venue.id, 0),
                 "created_at": venue.created_at.isoformat() if venue.created_at else None
             }
             
-            # Calculate distance if user provided
+            # Calculate distance if user provided (pure calculation, no query)
             if user:
                 distance_km = haversine_distance(user.latitude, user.longitude, venue.latitude, venue.longitude)
                 venue_data["distance_km"] = distance_km
-                
-                # Calculate friends interested
-                friends_interested = await count_friends_interested(session, user_id, venue.id)
-                venue_data["friends_interested"] = friends_interested
-                
-                # Check if user is interested
-                interest_result = await session.execute(
-                    select(InterestDB).where(
-                        and_(
-                            InterestDB.user_id == user_id,
-                            InterestDB.venue_id == venue.id
-                        )
-                    )
-                )
-                user_interested = interest_result.scalar() is not None
-                venue_data["user_interested"] = user_interested
+                venue_data["friends_interested"] = friends_interested_counts.get(venue.id, 0)
+                venue_data["user_interested"] = user_interests.get(venue.id, False)
             
             venues.append(venue_data)
         

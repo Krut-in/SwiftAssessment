@@ -65,22 +65,19 @@ struct VenueDetailView: View {
                 if let venue = viewModel.venue {
                     // Hero Image with overlay back button
                     ZStack(alignment: .topLeading) {
-                        AsyncImage(url: URL(string: venue.image)) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(height: 300)
-                                    .clipped()
-                            default:
-                                Rectangle()
-                                    .fill(Theme.Colors.secondaryBackground)
-                                    .frame(height: 300)
-                                    .overlay {
-                                        ProgressView()
-                                    }
-                            }
+                        CachedAsyncImage(url: venue.image) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: 300)
+                                .clipped()
+                        } placeholder: {
+                            Rectangle()
+                                .fill(Theme.Colors.secondaryBackground)
+                                .frame(height: 300)
+                                .overlay {
+                                    ProgressView()
+                                }
                         }
                         
                         // Button overlay container
@@ -255,23 +252,20 @@ struct VenueDetailView: View {
                                     HStack(spacing: Theme.Layout.spacing) {
                                         ForEach(viewModel.interestedUsers) { user in
                                             VStack(spacing: 8) {
-                                                AsyncImage(url: URL(string: user.avatar)) { phase in
-                                                    switch phase {
-                                                    case .success(let image):
-                                                        image
-                                                            .resizable()
-                                                            .aspectRatio(contentMode: .fill)
-                                                            .frame(width: 60, height: 60)
-                                                            .clipShape(Circle())
-                                                    default:
-                                                        Circle()
-                                                            .fill(Theme.Colors.secondaryBackground)
-                                                            .frame(width: 60, height: 60)
-                                                            .overlay {
-                                                                Image(systemName: "person.fill")
-                                                                    .foregroundColor(Theme.Colors.textSecondary)
-                                                            }
-                                                    }
+                                                CachedAsyncImage(url: user.avatar) { image in
+                                                    image
+                                                        .resizable()
+                                                        .aspectRatio(contentMode: .fill)
+                                                        .frame(width: 60, height: 60)
+                                                        .clipShape(Circle())
+                                                } placeholder: {
+                                                    Circle()
+                                                        .fill(Theme.Colors.secondaryBackground)
+                                                        .frame(width: 60, height: 60)
+                                                        .overlay {
+                                                            Image(systemName: "person.fill")
+                                                                .foregroundColor(Theme.Colors.textSecondary)
+                                                        }
                                                 }
                                                 
                                                 Text(user.name)
