@@ -47,12 +47,19 @@ struct ContentView: View {
                     }
                     .tag(1)
                 
+                // Social Tab
+                SocialFeedView()
+                    .tabItem {
+                        Label("Social", systemImage: "person.2.fill")
+                    }
+                    .tag(2)
+                
                 // Profile Tab
                 ProfileView()
                     .tabItem {
                         Label("Profile", systemImage: "person.fill")
                     }
-                    .tag(2)
+                    .tag(3)
                     .badge(appState.actionItemCount > 0 ? "\(appState.actionItemCount)" : "")
             }
             

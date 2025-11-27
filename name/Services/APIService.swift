@@ -99,6 +99,7 @@ protocol APIServiceProtocol {
     func fetchVenueBooking(venueId: String) async throws -> VenueBookingResponse
     func completeActionItem(itemId: String, userId: String) async throws -> SuccessResponse
     func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse
+    func fetchActivities(userId: String, page: Int, limit: Int) async throws -> ActivitiesResponse
 }
 
 // MARK: - API Service Implementation
@@ -225,6 +226,21 @@ class APIService: ObservableObject, APIServiceProtocol {
     func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse {
         let queryItems = [URLQueryItem(name: "user_id", value: userId)]
         return try await performRequest(endpoint: "/action-items/\(itemId)", method: "DELETE", queryItems: queryItems)
+    }
+    
+    /// Fetches social feed activities for a user
+    /// - Parameters:
+    ///   - userId: User identifier to fetch friend activities
+    ///   - page: Page number for pagination
+    ///   - limit: Number of activities per page
+    /// - Returns: ActivitiesResponse with paginated activities
+    func fetchActivities(userId: String, page: Int = 1, limit: Int = 20) async throws -> ActivitiesResponse {
+        let queryItems = [
+            URLQueryItem(name: "user_id", value: userId),
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "limit", value: String(limit))
+        ]
+        return try await performRequest(endpoint: "/activities", method: "GET", queryItems: queryItems)
     }
     
     // MARK: - Private Helper Methods

@@ -38,6 +38,11 @@ struct VenueFeedView: View {
     
     @StateObject private var viewModel = VenueFeedViewModel()
     @ObservedObject private var appState = AppState.shared
+    @AppStorage("venueViewMode") private var viewMode: ViewMode = .list
+    
+    enum ViewMode: String {
+        case list, map
+    }
     
     // MARK: - Computed Properties
     
@@ -73,6 +78,9 @@ struct VenueFeedView: View {
                 } else if viewModel.venues.isEmpty {
                     // Show empty state
                     emptyStateView
+                } else if viewMode == .map {
+                    // Show map view
+                    mapView
                 } else {
                     // Show venue list
                     venueListView
@@ -81,6 +89,19 @@ struct VenueFeedView: View {
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    // Map/List Toggle
+                    Button(action: {
+                        withAnimation(Theme.Animation.spring) {
+                            viewMode = viewMode == .list ? .map : .list
+                        }
+                    }) {
+                        Image(systemName: viewMode == .list ? "map" : "list.bullet")
+                            .font(.system(size: 20))
+                            .foregroundColor(Theme.Colors.primary)
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         viewModel.showFilterSheet = true
@@ -216,7 +237,13 @@ struct VenueFeedView: View {
             await viewModel.refresh()
         }
     }
-
+    
+    private var mapView: some View {
+        MapFeedView(venues: filteredVenues) { venueId in
+            // Navigation to venue detail will be handled by NavigationStack
+            // This closure is called when a pin is tapped
+        }
+    }
     
     private var allVenuesSection: some View {
         Group {

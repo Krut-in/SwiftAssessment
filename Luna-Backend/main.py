@@ -34,7 +34,7 @@ from sqlalchemy.orm import selectinload
 
 # Database imports
 from database import init_db, close_db, get_db
-from models.db_models import UserDB, VenueDB, InterestDB, UserInterestDB, FriendshipDB, ActionItemDB
+from models.db_models import UserDB, VenueDB, InterestDB, UserInterestDB, FriendshipDB, ActionItemDB, ActivityDB
 from models.api_models import ActionItem
 from seed_data import check_and_seed
 from agent import action_item_agent
@@ -632,6 +632,17 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
             # This makes the interest visible to subsequent queries in this transaction
             await session.flush()
             
+            # Create activity for social feed
+            activity_id = f"activity_{request.user_id}_{request.venue_id}_{int(datetime.now().timestamp())}"
+            new_activity = ActivityDB(
+                id=activity_id,
+                user_id=request.user_id,
+                venue_id=request.venue_id,
+                action="interested",
+                created_at=datetime.now()
+            )
+            session.add(new_activity)
+            
             logger.info(f"Interest added: user={request.user_id}, venue={request.venue_id}")
             
             # Get all interested user IDs for this venue (includes newly added interest)
@@ -890,6 +901,120 @@ async def get_recommendations(user_id: str):
         
         logger.info(f"Returning {len(recommendations)} recommendations ({len(user_interested_venue_ids)} already interested)")
         return {"recommendations": recommendations}
+
+
+@app.get("/activities")
+async def get_activities(
+    user_id: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20
+):
+    """
+    Get activity feed showing friend activities (interests, bookings, check-ins).
+    
+    Returns activities from the user's friends in chronological order.
+    
+    Args:
+        user_id: Optional user ID to filter friend activities
+        page: Page number for pagination (default: 1)
+        limit: Number of activities per page (default: 20, max: 100)
+        
+    Returns:
+        JSON object with activities array and pagination metadata
+    """
+    logger.info(f"Fetching activities for user_id={user_id}, page={page}, limit={limit}")
+    
+    # Validate pagination parameters
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 20
+    
+    async with get_db() as session:
+        # Get friend IDs if user_id provided
+        friend_ids = set()
+        if user_id:
+            # Get bidirectional friendships
+            result = await session.execute(
+                select(FriendshipDB)
+                .where(
+                    or_(
+                        FriendshipDB.user_id == user_id,
+                        FriendshipDB.friend_id == user_id
+                    )
+                )
+            )
+            friendships = result.scalars().all()
+            
+            for friendship in friendships:
+                if friendship.user_id == user_id:
+                    friend_ids.add(friendship.friend_id)
+                else:
+                    friend_ids.add(friendship.user_id)
+        
+        # Build query for activities
+        query = select(ActivityDB).options(
+            selectinload(ActivityDB.user),
+            selectinload(ActivityDB.venue)
+        )
+        
+        # Filter by friend IDs if provided
+        if user_id and friend_ids:
+            query = query.where(ActivityDB.user_id.in_(friend_ids))
+        elif user_id:
+            # User has no friends, return empty list
+            return {
+                "activities": [],
+                "page": page,
+                "limit": limit,
+                "total_count": 0
+            }
+        
+        # Order by most recent first
+        query = query.order_by(ActivityDB.created_at.desc())
+        
+        # Get total count
+        count_result = await session.execute(
+            select(func.count()).select_from(query.subquery())
+        )
+        total_count = count_result.scalar() or 0
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+        
+        # Execute query
+        result = await session.execute(query)
+        activities_db = result.scalars().all()
+        
+        # Build response
+        activities = []
+        for activity in activities_db:
+            activities.append({
+                "id": activity.id,
+                "user": {
+                    "id": activity.user.id,
+                    "name": activity.user.name,
+                    "avatar": activity.user.avatar
+                },
+                "venue": {
+                    "id": activity.venue.id,
+                    "name": activity.venue.name,
+                    "category": activity.venue.category,
+                    "image": activity.venue.image
+                },
+                "action": activity.action,
+                "timestamp": activity.created_at.isoformat()
+            })
+        
+        logger.info(f"Returning {len(activities)} activities (total: {total_count})")
+        
+        return {
+            "activities": activities,
+            "page": page,
+            "limit": limit,
+            "total_count": total_count
+        }
 
 
 @app.post("/action-items/{item_id}/complete")
