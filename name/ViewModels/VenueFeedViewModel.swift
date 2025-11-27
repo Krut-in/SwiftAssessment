@@ -89,30 +89,51 @@ class VenueFeedViewModel: ObservableObject {
     
     private let apiService: APIServiceProtocol
     private let appState: AppState
+    private let persistence: PersistenceController
     private var cancellables = Set<AnyCancellable>()
 
     
     // MARK: - Initialization
     
-    init(apiService: APIServiceProtocol = APIService(), appState: AppState = .shared) {
+    init(apiService: APIServiceProtocol = APIService(), appState: AppState = .shared, persistence: PersistenceController = .shared) {
         self.apiService = apiService
         self.appState = appState
+        self.persistence = persistence
     }
     
     // MARK: - Public Methods
     
     /// Loads venues from the API with current filters
+    /// Implements cache-first strategy: loads cached data first, then fetches from network
     /// Updates venues array, loading state, and error message
     func loadVenues() async {
         // Prevent multiple simultaneous loads
         guard !isLoading else { return }
         
+        // Check if we have cached data
+        let hasCached = persistence.hasCachedData()
+        
+        // Load from cache first for instant UI
+        if hasCached {
+            let cachedVenus = persistence.fetchCachedVenues()
+            await MainActor.run {
+                self.venues = self.sortVenues(cachedVenus)
+                if let cacheTime = persistence.getCacheTimestamp() {
+                    self.lastUpdated = cacheTime
+                }
+            }
+        }
+        
+        // Always try to fetch fresh data from network
         isLoading = true
         errorMessage = nil
         
         do {
             // Use current user ID from AppState
             let fetchedVenues = try await apiService.fetchVenues(userId: appState.currentUserId, filters: filters)
+            
+            // Save to cache for offline access
+            persistence.saveVenues(fetchedVenues)
             
             // Update UI on main thread
             await MainActor.run {
@@ -123,13 +144,19 @@ class VenueFeedViewModel: ObservableObject {
         } catch let error as APIError {
             // Handle API-specific errors
             await MainActor.run {
-                self.errorMessage = error.errorDescription
+                // Only show error if we don't have cached data
+                if !hasCached {
+                    self.errorMessage = error.errorDescription
+                }
                 self.isLoading = false
             }
         } catch {
             // Handle unexpected errors
             await MainActor.run {
-                self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                // Only show error if we don't have cached data
+                if !hasCached {
+                    self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+                }
                 self.isLoading = false
             }
         }
