@@ -63,7 +63,7 @@ struct RecommendedFeedView: View {
                     recommendationListView
                 }
             }
-            .navigationTitle("Recommended")
+            .navigationTitle("For You")
             .navigationBarTitleDisplayMode(.large)
             .task {
                 await viewModel.loadRecommendations()

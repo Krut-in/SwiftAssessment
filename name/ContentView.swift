@@ -40,10 +40,10 @@ struct ContentView: View {
                     }
                     .tag(0)
                 
-                // Recommended Tab
+                // For You Tab
                 RecommendedFeedView()
                     .tabItem {
-                        Label("Recommended", systemImage: "star.fill")
+                        Label("For You", systemImage: "star.fill")
                     }
                     .tag(1)
                 

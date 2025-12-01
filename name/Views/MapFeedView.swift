@@ -23,6 +23,23 @@
 import SwiftUI
 import MapKit
 
+// MARK: - Seeded Random Number Generator
+
+/// Custom random number generator with deterministic seed for consistent results
+struct SeededRandomNumberGenerator: RandomNumberGenerator {
+    private var state: UInt64
+    
+    init(seed: UInt64) {
+        self.state = seed
+    }
+    
+    mutating func next() -> UInt64 {
+        // Linear congruential generator algorithm
+        state = state &* 6364136223846793005 &+ 1442695040888963407
+        return state
+    }
+}
+
 struct MapFeedView: View {
     
     // MARK: - Properties
@@ -36,11 +53,12 @@ struct MapFeedView: View {
     )
     
     @State private var selectedVenueId: String?
+    @State private var annotations: [VenueAnnotation] = []
     
     // MARK: - Body
     
     var body: some View {
-        Map(coordinateRegion: $region, annotationItems: venueAnnotations) { annotation in
+        Map(coordinateRegion: $region, annotationItems: annotations) { annotation in
             MapAnnotation(coordinate: annotation.coordinate) {
                 VenueMapPin(
                     venueName: annotation.name,
@@ -66,22 +84,36 @@ struct MapFeedView: View {
         }
         .ignoresSafeArea(edges: .top)
         .onAppear {
+            generateAnnotations()
+            centerMapOnVenues()
+        }
+        .onChange(of: venues) { _ in
+            generateAnnotations()
             centerMapOnVenues()
         }
     }
     
     // MARK: - Helper Methods
     
-    /// Convert venues to map annotations
-    private var venueAnnotations: [VenueAnnotation] {
-        venues.compactMap { venue in
+    /// Generate venue annotations with deterministic positioning
+    /// Uses venue ID as seed to ensure consistent pin positions across renders
+    private func generateAnnotations() {
+        annotations = venues.compactMap { venue in
             // Skip venues without coordinates
             guard let distance = venue.distance_km else { return nil }
             
+            // Use venue ID to create deterministic seed for position
+            // This ensures pins stay in the same position across re-renders
+            let seed = abs(venue.id.hashValue)
+            var generator = SeededRandomNumberGenerator(seed: UInt64(seed))
+            
             // Calculate approximate coordinates based on distance
             // In production, venues should have actual lat/long from backend
-            let lat = region.center.latitude + Double.random(in: -0.02...0.02)
-            let lon = region.center.longitude + Double.random(in: -0.02...0.02)
+            let latOffset = Double.random(in: -0.02...0.02, using: &generator)
+            let lonOffset = Double.random(in: -0.02...0.02, using: &generator)
+            
+            let lat = region.center.latitude + latOffset
+            let lon = region.center.longitude + lonOffset
             
             return VenueAnnotation(
                 id: venue.id,
@@ -94,9 +126,9 @@ struct MapFeedView: View {
     
     /// Center map on all venues
     private func centerMapOnVenues() {
-        guard !venueAnnotations.isEmpty else { return }
+        guard !annotations.isEmpty else { return }
         
-        let coordinates = venueAnnotations.map { $0.coordinate }
+        let coordinates = annotations.map { $0.coordinate }
         let latitudes = coordinates.map { $0.latitude }
         let longitudes = coordinates.map { $0.longitude }
         

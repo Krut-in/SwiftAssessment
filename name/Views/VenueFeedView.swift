@@ -39,6 +39,7 @@ struct VenueFeedView: View {
     @StateObject private var viewModel = VenueFeedViewModel()
     @ObservedObject private var appState = AppState.shared
     @AppStorage("venueViewMode") private var viewMode: ViewMode = .list
+    @State private var selectedVenueId: String?
     
     enum ViewMode: String {
         case list, map
@@ -133,6 +134,9 @@ struct VenueFeedView: View {
                         await viewModel.applyFilters()
                     }
                 }
+            }
+            .navigationDestination(item: $selectedVenueId) { venueId in
+                VenueDetailView(venueId: venueId)
             }
         }
     }
@@ -240,8 +244,7 @@ struct VenueFeedView: View {
     
     private var mapView: some View {
         MapFeedView(venues: filteredVenues) { venueId in
-            // Navigation to venue detail will be handled by NavigationStack
-            // This closure is called when a pin is tapped
+            selectedVenueId = venueId
         }
     }
     

@@ -64,7 +64,7 @@ struct SortMenu: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 20)
                     .fill(Color.blue.opacity(0.1))
             )
         }

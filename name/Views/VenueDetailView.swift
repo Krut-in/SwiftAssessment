@@ -78,6 +78,20 @@ struct VenueDetailView: View {
                                 .overlay {
                                     ProgressView()
                                 }
+                        } failure: {
+                            Rectangle()
+                                .fill(categoryColor(for: venue.category).opacity(0.2))
+                                .frame(height: 300)
+                                .overlay {
+                                    VStack(spacing: 12) {
+                                        Image(systemName: categoryIcon(for: venue.category))
+                                            .font(.system(size: 60))
+                                            .foregroundColor(categoryColor(for: venue.category))
+                                        Text("Image unavailable")
+                                            .font(Theme.Fonts.subheadline)
+                                            .foregroundColor(Theme.Colors.textSecondary)
+                                    }
+                                }
                         }
                         
                         // Button overlay container
@@ -253,20 +267,28 @@ struct VenueDetailView: View {
                                         ForEach(viewModel.interestedUsers) { user in
                                             VStack(spacing: 8) {
                                                 CachedAsyncImage(url: user.avatar) { image in
-                                                    image
-                                                        .resizable()
-                                                        .aspectRatio(contentMode: .fill)
-                                                        .frame(width: 60, height: 60)
-                                                        .clipShape(Circle())
-                                                } placeholder: {
-                                                    Circle()
-                                                        .fill(Theme.Colors.secondaryBackground)
-                                                        .frame(width: 60, height: 60)
-                                                        .overlay {
-                                                            Image(systemName: "person.fill")
-                                                                .foregroundColor(Theme.Colors.textSecondary)
-                                                        }
-                                                }
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 60, height: 60)
+                                        .clipShape(Circle())
+                                } placeholder: {
+                                    Circle()
+                                        .fill(Theme.Colors.secondaryBackground)
+                                        .frame(width: 60, height: 60)
+                                        .overlay {
+                                            Image(systemName: "person.fill")
+                                                .foregroundColor(Theme.Colors.textSecondary)
+                                        }
+                                } failure: {
+                                    Circle()
+                                        .fill(Theme.Colors.secondaryBackground)
+                                        .frame(width: 60, height: 60)
+                                        .overlay {
+                                            Image(systemName: "person.fill")
+                                                .foregroundColor(Theme.Colors.textSecondary)
+                                        }
+                                }
                                                 
                                                 Text(user.name)
                                                     .font(Theme.Fonts.caption)
@@ -334,6 +356,7 @@ struct VenueDetailView: View {
                 }
             }
         }
+        .enableNativeSwipeBack()
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .task {
@@ -371,6 +394,28 @@ struct VenueDetailView: View {
             return Theme.Colors.Category.entertainment
         default:
             return Theme.Colors.textSecondary
+        }
+    }
+    
+    /// Returns an icon based on venue category
+    /// - Parameter category: The venue category string
+    /// - Returns: SF Symbol name for the category
+    private func categoryIcon(for category: String) -> String {
+        switch category.lowercased() {
+        case "coffee shop", "coffee", "café", "cafe":
+            return "cup.and.saucer.fill"
+        case "restaurant", "food", "dining":
+            return "fork.knife"
+        case "bar", "nightlife", "pub", "lounge":
+            return "wineglass.fill"
+        case "museum", "cultural", "culture", "art", "gallery":
+            return "building.columns.fill"
+        case "park", "outdoor", "nature":
+            return "leaf.fill"
+        case "entertainment", "theater", "cinema":
+            return "theatermasks.fill"
+        default:
+            return "photo.fill"
         }
     }
 }
