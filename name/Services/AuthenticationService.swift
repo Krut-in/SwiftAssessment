@@ -14,10 +14,10 @@
 //  - UserDefaults for session persistence across app launches
 //  
 //  DEMO USERS:
-//  - user_1: Alice Chen (default)
-//  - user_2: Bob Martinez
-//  - user_3: Carol Kim
-//  - user_4: David Park
+//  - user_1: Alex Chen (default)
+//  - user_2: Jordan Kim
+//  - user_3: Sam Rivera
+//  - user_4: Taylor Lee
 //  
 //  USAGE:
 //  let authService = MockAuthenticationService.shared
@@ -82,23 +82,23 @@ class MockAuthenticationService: AuthenticationServiceProtocol {
     private let demoUsers: [DemoUser] = [
         DemoUser(
             id: "user_1",
-            name: "Alice Chen",
-            avatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Alice"
+            name: "Alex Chen",
+            avatar: "https://i.pravatar.cc/150?img=1"
         ),
         DemoUser(
             id: "user_2",
-            name: "Bob Martinez",
-            avatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Bob"
+            name: "Jordan Kim",
+            avatar: "https://i.pravatar.cc/150?img=2"
         ),
         DemoUser(
             id: "user_3",
-            name: "Carol Kim",
-            avatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Carol"
+            name: "Sam Rivera",
+            avatar: "https://i.pravatar.cc/150?img=3"
         ),
         DemoUser(
             id: "user_4",
-            name: "David Park",
-            avatar: "https://api.dicebear.com/7.x/avataaars/png?seed=David"
+            name: "Taylor Lee",
+            avatar: "https://i.pravatar.cc/150?img=4"
         )
     ]
     

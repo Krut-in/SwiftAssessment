@@ -46,7 +46,7 @@ struct ProfileView: View {
     
     // MARK: - Properties
     
-    @StateObject private var viewModel = ProfileViewModel(userId: "user_1", appState: .shared)
+    @StateObject private var viewModel = ProfileViewModel(appState: .shared)
     @ObservedObject private var appState = AppState.shared
     
     // MARK: - State
@@ -471,6 +471,7 @@ struct VenueGridCard: View {
                 .fontWeight(.semibold)
                 .foregroundColor(Theme.Colors.textPrimary)
                 .lineLimit(2)
+                .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Theme.Colors.cardBackground)

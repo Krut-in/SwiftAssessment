@@ -86,19 +86,27 @@ class ProfileViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(userId: String, apiService: APIServiceProtocol = APIService(), appState: AppState) {
+    init(apiService: APIServiceProtocol = APIService(), appState: AppState) {
         self.apiService = apiService
         self.appState = appState
         
-        // Observe app state for interest changes to reload profile
+        // Observe app state for user changes to reload profile
         setupObservers()
     }
     
     // MARK: - Private Methods
     
     private func setupObservers() {
-        // Observer removed to prevent infinite reload loop
-        // Profile will refresh on manual pull-to-refresh or when view appears
+        // Observe currentUserId changes to reload profile when user switches
+        appState.$currentUserId
+            .dropFirst() // Skip initial value
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    await self?.loadProfile()
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods
