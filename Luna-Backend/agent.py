@@ -5,13 +5,13 @@ This module creates action items when interest threshold is met.
 Action items are persistent, trackable items that users can manage from their profile.
 
 ARCHITECTURE:
-    - Triggered automatically when >= 4 users express interest in a venue
+    - Triggered automatically when >= 5 users express interest in a venue
     - Creates persistent action items instead of mock bookings
     - Returns action item data for display in toast notifications
     - Designed for manual user action (no automatic booking)
 
 THRESHOLD CONFIGURATION:
-    - Current: 4 users (configurable)
+    - Current: 5 users (configurable)
     - Consider making this venue-specific in production
     - Could vary based on venue capacity or day/time
 
@@ -40,7 +40,7 @@ def action_item_agent(
     Creates an action item when interest threshold is reached.
     
     Action items are persistent records that users can track and manage.
-    When 3+ users are interested, creates an action item with a unique code
+    When 5+ users are interested, creates an action item with a unique code
     and description encouraging coordination.
     
     Args:
@@ -60,7 +60,7 @@ def action_item_agent(
         - threshold_met (bool): Whether threshold was met
         - notification_payload (dict): Push notification data (if created)
     """
-    threshold = 3  # Trigger when 3+ users interested (Sprint 2 requirement)
+    threshold = 5  # Trigger when 5+ users interested
     user_count = len(interested_user_ids)
     
     # Check if threshold is met

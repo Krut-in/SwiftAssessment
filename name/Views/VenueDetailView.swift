@@ -350,10 +350,6 @@ struct VenueDetailView: View {
                 }
             }
             }  // Close ScrollView
-            
-            // Interest Success Toast
-            InterestSuccessToast(isShowing: $viewModel.showInterestToast)
-                .zIndex(100)
         }  // Close ZStack
         .enableNativeSwipeBack()
         .navigationBarTitleDisplayMode(.inline)

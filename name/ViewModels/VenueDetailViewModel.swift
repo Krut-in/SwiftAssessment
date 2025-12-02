@@ -75,8 +75,7 @@ class VenueDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isInterested = false
     @Published var isTogglingInterest = false
-    @Published var successMessage: String?  // Deprecated: replaced by showInterestToast
-    @Published var showInterestToast = false  // New: controls Interest Success Toast
+
     
     // MARK: - Private Properties
     
@@ -146,18 +145,12 @@ class VenueDetailViewModel: ObservableObject {
     func toggleInterest() async {
         isTogglingInterest = true
         errorMessage = nil
-        successMessage = nil  // Clear old success message
         
         do {
             let response = try await appState.toggleInterest(venueId: venueId)
             
             // Reload venue details to get updated interested users count
             await loadVenueDetail()
-            
-            // Show toast for interest activation (not for removal)
-            if isInterested {
-                self.showInterestToast = true
-            }
             
             self.isTogglingInterest = false
         } catch let error as APIError {
