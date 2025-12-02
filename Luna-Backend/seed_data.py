@@ -34,7 +34,7 @@ from sqlalchemy import select
 
 from models.db_models import (
     UserDB, VenueDB, InterestDB, UserInterestDB, 
-    FriendshipDB, ActionItemDB
+    FriendshipDB, ActionItemDB, ActivityDB
 )
 
 logger = logging.getLogger(__name__)
@@ -634,7 +634,25 @@ async def seed_database(session: AsyncSession) -> None:
         )
         session.add(interest)
     
+    
     logger.info(f"Created {len(interests_data)} interest relationships")
+    
+    # Create activities for social feed (one activity per interest)
+    # This populates friends' social feeds with historical activity data
+    activities_created = 0
+    for interest_data in interests_data:
+        activity_id = f"activity_{interest_data['user_id']}_{interest_data['venue_id']}_{int(interest_data['timestamp'].timestamp())}"
+        activity = ActivityDB(
+            id=activity_id,
+            user_id=interest_data["user_id"],
+            venue_id=interest_data["venue_id"],
+            action="interested",
+            created_at=interest_data["timestamp"]
+        )
+        session.add(activity)
+        activities_created += 1
+    
+    logger.info(f"Created {activities_created} activity records for social feed")
     
     # Create friendships (all user pairs for 15 users)
     # Store each friendship once with user_id < friend_id

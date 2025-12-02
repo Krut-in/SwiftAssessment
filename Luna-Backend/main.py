@@ -758,10 +758,13 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
     """
     Express or toggle interest in a venue.
     
-    If the user is already interested, removes the interest.
-    If not interested, adds the interest.
+    If the user is already interested, removes the interest and associated activity.
+    If not interested, adds the interest and creates an activity for friends' social feeds.
     
-    Handles action item creation when threshold is met (4+ users).
+    Activities are committed separately from action items to ensure they always persist.
+    This maintains consistency across Profile, Discover, Recommended, and Social tabs.
+    
+    Handles action item creation when threshold is met (5+ users).
     
     Args:
         request: InterestRequest containing user_id and venue_id
@@ -801,18 +804,45 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
         existing_interest = result.scalar_one_or_none()
         
         if existing_interest:
-            # Remove interest (toggle off)
+            # ============================================================
+            # REMOVE INTEREST (toggle off)
+            # ============================================================
+            
+            # Delete the interest record
             await session.delete(existing_interest)
+            
+            # Delete associated activity for consistency across all tabs
+            # This ensures Social tab, Profile tab, etc. stay in sync
+            result = await session.execute(
+                select(ActivityDB)
+                .where(
+                    and_(
+                        ActivityDB.user_id == request.user_id,
+                        ActivityDB.venue_id == request.venue_id,
+                        ActivityDB.action == "interested"
+                    )
+                )
+            )
+            activities = result.scalars().all()
+            
+            for activity in activities:
+                await session.delete(activity)
+            
+            # Commit the deletions
             await session.commit()
             
-            logger.info(f"Interest removed: user={request.user_id}, venue={request.venue_id}")
+            logger.info(f"Interest and {len(activities)} activity record(s) removed: user={request.user_id}, venue={request.venue_id}")
             
             return InterestResponse(
                 success=True,
                 message=f"Interest removed for {venue.name}"
             )
         else:
-            # Add interest (toggle on)
+            # ============================================================
+            # ADD INTEREST (toggle on)
+            # ============================================================
+            
+            # Create interest record
             new_interest = InterestDB(
                 user_id=request.user_id,
                 venue_id=request.venue_id,
@@ -820,11 +850,8 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
             )
             session.add(new_interest)
             
-            # IMPORTANT: Flush to database but don't commit yet
-            # This makes the interest visible to subsequent queries in this transaction
-            await session.flush()
-            
             # Create activity for social feed
+            # Friends will see this in their Social tab
             activity_id = f"activity_{request.user_id}_{request.venue_id}_{int(datetime.now().timestamp())}"
             new_activity = ActivityDB(
                 id=activity_id,
@@ -835,7 +862,15 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
             )
             session.add(new_activity)
             
-            logger.info(f"Interest added: user={request.user_id}, venue={request.venue_id}")
+            # CRITICAL: Commit interest + activity FIRST before action item logic
+            # This prevents rollbacks from orphaning activities
+            await session.commit()
+            
+            logger.info(f"Interest and activity created: user={request.user_id}, venue={request.venue_id}, activity_id={activity_id}")
+            
+            # ============================================================
+            # ACTION ITEM LOGIC (separate transaction)
+            # ============================================================
             
             # Get all interested user IDs for this venue (includes newly added interest)
             result = await session.execute(
@@ -857,8 +892,8 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
             )
             existing_action_item = result.scalar_one_or_none()
             
+            # Try to create action item if threshold met (5+ users)
             try:
-                # Try to create action item if threshold met
                 agent_response = action_item_agent(
                     request.venue_id,
                     interested_user_ids,
@@ -882,7 +917,6 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
                     )
                     session.add(action_item)
                     
-                    # Commit both the interest and action item together
                     try:
                         await session.commit()
                         logger.info(f"Action item created: {action_item.id} for venue={request.venue_id}, count={interested_count}")
@@ -899,35 +933,24 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
                             )
                         )
                     except Exception as commit_error:
-                        # Handle potential unique constraint violation on action_code
-                        logger.error(f"Failed to commit action item: {str(commit_error)}", exc_info=True)
+                        # Action item failed, but interest + activity are already saved!
+                        logger.error(f"Failed to commit action item (interest already saved): {str(commit_error)}", exc_info=True)
                         await session.rollback()
-                        
-                        # Re-add just the interest and commit it
-                        new_interest = InterestDB(
-                            user_id=request.user_id,
-                            venue_id=request.venue_id,
-                            created_at=datetime.now()
-                        )
-                        session.add(new_interest)
-                        await session.commit()
                         
                         return InterestResponse(
                             success=True,
                             message="Interest recorded successfully"
                         )
                 else:
-                    # No action item needed, just commit the interest
-                    await session.commit()
+                    # No action item needed
                     return InterestResponse(
                         success=True,
                         message="Interest recorded successfully"
                     )
             except Exception as e:
-                logger.error(f"Action item agent error: {str(e)}", exc_info=True)
-                # Rollback any pending action item changes
-                await session.rollback()
-                # Still return success since interest was recorded
+                # Action item logic failed, but interest + activity are already saved!
+                logger.error(f"Action item agent error (interest already saved): {str(e)}", exc_info=True)
+                
                 return InterestResponse(
                     success=True,
                     message="Interest recorded successfully"

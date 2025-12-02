@@ -1,204 +1,133 @@
 # Luna - Social Venue Discovery Platform
 
-**A full-stack iOS application for discovering venues with intelligent recommendations and automated booking**
+**A full-stack iOS application for discovering venues with intelligent recommendations and social coordination**
 
-![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)
-
-![SwiftUI](https://img.shields.io/badge/SwiftUI-iOS%2017+-blue.svg)
-
-![FastAPI](https://img.shields.io/badge/FastAPI-0.104-green.svg)
-
-![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-
-![iOS CI](https://github.com/Krut-in/SwiftAssessment/workflows/iOS%20CI/badge.svg)
-
-![Backend CI](https://github.com/Krut-in/SwiftAssessment/workflows/Backend%20CI/badge.svg)
+![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg) ![SwiftUI](https://img.shields.io/badge/SwiftUI-iOS%2017+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg) ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 
 ## 📬 Quick Links
 
 - **GitHub:** [Krut-in/SwiftAssessment](https://github.com/Krut-in/SwiftAssessment)
 - **Email:** krutin31@gmail.com
-- **Video Walkthrough:** [Watch on YouTube](https://youtu.be/ovel1CUci7M?si=KTdXAMWz1mUxqpWi)
-- **Documentation:** [PDF Overview](./resources/Luna_Full-Stack_Venue_Discovery_Platform.pdf)
-- **Demo Summary by AI:** [Local Recording](./resources/Luna__A_Full-Stack_App.mp4)
 
 ## 🎯 Overview
 
-Luna is a complete venue discovery application demonstrating full-stack iOS development with Swift/SwiftUI and Python/FastAPI. Users can discover venues, express interest, see who else is interested, and receive personalized recommendations. The app features an intelligent action item agent that automatically creates booking suggestions when interest thresholds are met.
+Luna is a venue discovery app built with Swift/SwiftUI and Python/FastAPI. Users discover venues, express interest, see friends' activity, and receive personalized recommendations. An intelligent booking agent creates action items when 5+ users express interest.
 
 **Core Value Proposition:**
-
-- **Zero friction discovery** - Personalized venue feed on launch
-- **Social coordination** - See which friends are interested
-- **Intelligent automation** - Action items at 4+ interested users
-- **Transparent recommendations** - Scored 0-10 with explanations
-
-### Key Highlights
-
-- Native iOS app with SwiftUI and MVVM architecture
-- Python FastAPI backend with 5 RESTful endpoints
-- Personalized recommendation engine (0-10 scoring scale)
-- Automated booking agent (triggers at 3+ interested users)
-- Social features with friend activity tracking
-- Complete error handling and loading states
+- **Zero friction discovery** - Personalized "For You" feed with scored recommendations
+- **Social coordination** - "Hot Right Now" venues, friend activity timeline
+- **Intelligent automation** - Action items triggered at 5+ interested users
+- **Transparent scoring** - 0-10 scale with full breakdown (popularity, category, friends, proximity)
 
 ---
 
-## ✅ Implemented Features
+## ✅ Features
 
-### Track 1: Frontend (iOS)
+### iOS App (4-Tab Navigation)
 
-### Core Views
+| Tab | Features |
+|-----|----------|
+| **Discover** | Lazy-loaded venue list, category filter bar, map/list toggle, advanced filtering (distance, interests), sorting (popularity, distance, friends, name) |
+| **For You** | Personalized recommendations with 0-10 scores, visual score breakdown with progress bars |
+| **Social** | "Hot Right Now" (5+ friends interested), friend activity timeline with pagination, plan meetup (coming soon) |
+| **Profile** | User switcher (4 demo users), interested venues grid, action items, dark mode toggle |
 
-- **Venue Feed** - Scrollable list with lazy loading, pull-to-refresh, category badges
-- **Venue Detail** - Hero image, interest toggle, list of interested users
-- **User Profile** - Avatar, bio, interests, saved venues grid
-- **Recommendation Section** - Top 3 personalized suggestions with scores
+**Key Interactions:**
+- Interest toggle with haptic feedback and optimistic updates
+- Action item toast notifications (global overlay)
+- Pull-to-refresh, infinite scroll pagination
+- Deep linking support (`luna://venues/{id}`)
 
-### Interactions
+### Backend (9 API Endpoints)
 
-- **Interest Button** - One-tap heart toggle with spring animation (1.2x scale), haptic feedback
-- **Optimistic Updates** - Instant UI feedback before API confirmation
-- **Navigation** - Tab-based navigation (Discover, Profile) with custom styling
+**Venues**
+- `GET /venues` - List with filtering/sorting
+- `GET /venues/{id}` - Detail with interested users
 
-### Polish
+**Interests**
+- `POST /interests` - Toggle interest (triggers booking agent)
 
-- **Animations** - Scale animations with spring physics on buttons and cards
-- **Loading States** - Full-screen and inline loading indicators
-- **Error Handling** - User-friendly messages with retry buttons
-- **Empty States** - Contextual messaging when no data available
+**Users**
+- `GET /users/{id}` - Profile with venues and action items
 
-### Track 2: Backend (Python/FastAPI)
+**Recommendations**
+- `GET /recommendations` - Personalized scored suggestions
 
-### API Endpoints
+**Social**
+- `GET /social/feed` - Paginated friend activity
 
-1. `GET /venues` - List all venues with interested counts
-2. `GET /venues/{id}` - Detailed venue info with interested users
-3. `POST /interests` - Express/remove interest (toggle behavior)
-4. `GET /users/{id}` - User profile with interested venues
-5. `GET /recommendations?user_id={id}` - Personalized recommendations
-
-### Recommendation Engine
-
-**Multi-Factor Scoring Algorithm:**
-
-```
-score = (popularity * 0.4) + (category_match * 0.3) + (social_signal * 0.3) * 10
-```
-
-- **Popularity (40%)** - Based on total interested user count
-- **Category Match (30%)** - Alignment with user's interests
-- **Social Signal (30%)** - Friends interested in the venue
-
-**Output:** Sorted recommendations (0-10 scale) with reasoning text
-
-### Booking Agent
-
-- **Trigger Condition:** 3+ users express interest in same venue
-- **Behavior:** Automatically creates mock reservation
-- **Response:** Date (tomorrow), time (7:00 PM), party size, interested users
-- **Notification:** Global alert shown to all users
+**Action Items**
+- `POST /action-items/{id}/complete` - Complete item
+- `DELETE /action-items/{id}` - Dismiss item
 
 ---
 
 ## 🏗️ Architecture
 
-### System Architecture Diagram
+### System Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     iOS App (SwiftUI)                       │
+│                    iOS App (SwiftUI + MVVM)                 │
 ├─────────────────────────────────────────────────────────────┤
+│  Views (11)          ViewModels (5)       Services (6)      │
+│  ├─ VenueFeedView    ├─ VenueFeedVM       ├─ APIService     │
+│  ├─ RecommendedFeed  ├─ RecommendedFeedVM ├─ AuthService    │
+│  ├─ SocialFeedView   ├─ SocialFeedVM      ├─ AnalyticService│
+│  ├─ ProfileView      ├─ VenueDetailVM     ├─ NotificationSvc│
+│  ├─ VenueDetailView  └─ ProfileVM         ├─ ImageCacheSvc  │
+│  └─ 14 Components                         └─ Persistence    │
 │                                                             │
-│  ┌──────────┐      ┌──────────┐      ┌──────────┐           │
-│  │  Views   │─────▶│ViewModels│─────▶│ Services │           │
-│  │          │◀─────│          │◀─────│          │           │
-│  └──────────┘      └──────────┘      └──────────┘           │
-│       │                  │                  │               │
-│       │                  │                  │               │
-│  ┌────▼────┐      ┌──────▼──────┐    ┌────▼────┐            │
-│  │ Models  │      │  AppState   │    │   API   │            │
-│  │         │      │ (Singleton) │    │ Models  │            │
-│  └─────────┘      └─────────────┘    └─────────┘            │
-│                                                             │
-└────────────────────────────────┼────────────────────────────┘
-                                 │
-                         HTTP/JSON (REST)
-                                 │
-┌────────────────────────────────▼────────────────────────────┐
-│              Backend (Python/FastAPI)                       │
+│  AppState (Singleton) ◄──── Global state management         │
+│  ThemeManager ◄──────────── Dark mode + design system       │
+└────────────────────────────┬────────────────────────────────┘
+                             │ HTTP/JSON (REST)
+┌────────────────────────────▼────────────────────────────────┐
+│                  Backend (Python/FastAPI)                   │
 ├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────────┐           ┌──────────────┐                │
-│  │API Endpoints │──────────▶│Business Logic│                │
-│  │  (main.py)   │◀──────────│(Recommend)   │                │
-│  └──────────────┘           └──────────────┘                │ 
-│         │                           │                       │
-│  ┌──────▼────────┐          ┌──────▼──────┐                 │
-│  │Pydantic Models│          │ Data Store  │                 │
-│  │               │          │(In-Memory)  │                 │
-│  └───────────────┘          └─────────────┘                 │
-│                                    │                        │
-│                             ┌──────▼──────┐                 │
-│                             │Booking Agent│                 │
-│                             │  (agent.py) │                 │
-│                             └─────────────┘                 │
+│  main.py ──► Pydantic Models ──► SQLAlchemy ORM             │
+│      │              │                   │                   │
+│      ▼              ▼                   ▼                   │
+│  agent.py      api_models.py       SQLite DB                │
+│  (Booking)     db_models.py        (7 tables)               │
 └─────────────────────────────────────────────────────────────┘
-
 ```
 
-### MVVM Pattern (iOS)
+### Recommendation Scoring Algorithm
 
-**Views** → User interface components (SwiftUI)
+```mermaid
+flowchart LR
+    subgraph Inputs
+        P[Popularity]
+        C[Category Match]
+        F[Friend Signal]
+        D[Distance/Proximity]
+    end
+    
+    subgraph Weights
+        P -->|30%| Score
+        C -->|25%| Score
+        F -->|25%| Score
+        D -->|20%| Score
+    end
+    
+    Score -->|0-10 scale| Output[Ranked Recommendations]
+```
 
-- `VenueFeedView` - Main discovery feed
-- `VenueDetailView` - Detailed venue page
-- `ProfileView` - User profile
-- `VenueCardView` - Reusable venue component
-
-**ViewModels** → Business logic (@MainActor ObservableObject)
-
-- `VenueFeedViewModel` - Feed state management
-- `VenueDetailViewModel` - Detail state and interest toggling
-- `ProfileViewModel` - Profile data loading
-
-**Services** → API communication (Protocol-based)
-
-- `APIService` - REST API client with error handling
-- `AppState` - Global state singleton
-
-**Models** → Data structures
-
-- `Venue`, `User`, `Interest`, `RecommendationItem`
+**Scoring Formula:** `score = (popularity × 0.30) + (category_match × 0.25) + (friend_signal × 0.25) + (proximity × 0.20)`
 
 ### Interest Toggle Flow
 
 ```
-1. User taps heart
-   └─▶ VenueCardView: Animate (scale 1.2x), haptic feedback
-
-2. Optimistic update
-   └─▶ Local state: Update interest count immediately
-
-3. API call
-   └─▶ AppState.toggleInterest(venueId)
-       └─▶ APIService.expressInterest(userId, venueId)
-
-4. Backend processing
-   └─▶ POST /interests
-       ├─▶ Update interest dictionary
-       ├─▶ Check threshold (3+ users?)
-       └─▶ If yes: Trigger booking agent
-
-5. Response handling
-   └─▶ Success: Keep optimistic update
-   └─▶ Booking: Show global alert
-   └─▶ Error: Revert optimistic update
-
-6. UI refresh
-   └─▶ Reload recommendations
-   └─▶ Update interested users list
-
+User taps heart → Haptic feedback + scale animation (1.2x)
+       ↓
+Optimistic UI update → Local state reflects change immediately
+       ↓
+API call → POST /interests (toggle behavior)
+       ↓
+Backend checks threshold → If 5+ users: Trigger booking agent
+       ↓
+Response → Success: Keep update | Error: Rollback | Booking: Show toast
 ```
 
 ---
@@ -207,165 +136,103 @@ score = (popularity * 0.4) + (category_match * 0.3) + (social_signal * 0.3) * 10
 
 ### Prerequisites
 
-**Backend:**
-
-- Python 3.10 or higher
-- pip package manager
-
-**iOS:**
-
-- macOS with Xcode 15.0+
-- iOS 17.0+ Simulator or device
-- Swift 5.9+
+| Component | Requirement |
+|-----------|-------------|
+| **Backend** | Python 3.10+, pip |
+| **iOS** | macOS, Xcode 15.0+, iOS 17.0+ Simulator |
 
 ### Backend Setup
 
-1. **Navigate to backend directory:**
-    
-    ```bash
-    cd Luna-Backend
-    
-    ```
-    
-2. **Run setup script:**
-    
-    ```bash
-    chmod +x setup.sh
-    ./setup.sh
-    
-    ```
-    
-    This creates a virtual environment and installs dependencies.
-    
-3. **Activate virtual environment:**
-    
-    ```bash
-    source venv/bin/activate
-    
-    ```
-    
-4. **Start the server:**
-    
-    ```bash
-    uvicorn main:app --reload --port 8000
-    
-    ```
-    
-5. **Verify server:**
-    - API Root: [http://localhost:8000](http://localhost:8000/)
-    - Swagger Docs: http://localhost:8000/docs
-    - Test: `curl <http://localhost:8000/venues`>
+```bash
+cd Luna-Backend
+chmod +x setup.sh && ./setup.sh
+source venv/bin/activate
+uvicorn main:app --reload --port 8000
+```
+
+Verify: `http://localhost:8000/docs` (Swagger UI)
 
 ### iOS Setup
 
-1. **Open Xcode project:**
-    
-    ```bash
-    cd Luna-iOS
-    open Luna.xcodeproj
-    
-    ```
-    
-2. **Select simulator:**
-    - Choose iPhone 15 Pro (recommended)
-3. **Build and run:**
-    - Press `Cmd+R` or click Play button
-    - Wait ~30 seconds for first build
-4. **Verify connection:**
-    - App should load venue feed automatically
-    - If error appears, ensure backend is running
-
-### Quick Test
-
 ```bash
-# Backend: List venues
-curl <http://localhost:8000/venues> | python3 -m json.tool
-
-# Backend: Get recommendations
-curl "<http://localhost:8000/recommendations?user_id=user_1>" | python3 -m json.tool
-
-# Backend: Express interest
-curl -X POST <http://localhost:8000/interests> \\
-  -H "Content-Type: application/json" \\
-  -d '{"user_id":"user_1","venue_id":"venue_1"}'
-
+open name/name.xcodeproj
 ```
+
+1. Select iPhone 15 Pro simulator
+2. **Important:** Update `baseURL` in `name/Services/APIService.swift` to your machine's IP
+3. Press `Cmd+R` to build and run
 
 ---
 
 ## 🛠️ Technology Stack
 
-### iOS App (No External Dependencies)
+### iOS (Zero External Dependencies)
 
-- **SwiftUI** (iOS 17.0+) - User interface framework
-- **Combine** - Reactive data flow
-- **Foundation** - Core utilities and networking
-- **URLSession** - Native networking (async/await)
-
-**Why no external packages?**
-
-- Lightweight and fast
-- No dependency management complexity
-- Leverages Apple's robust frameworks
+| Framework | Purpose |
+|-----------|---------|
+| SwiftUI | Declarative UI (iOS 17+) |
+| Combine | Reactive data flow |
+| Foundation/URLSession | Native async networking |
+| CoreData | Local persistence |
+| MapKit | Map view integration |
 
 ### Backend
 
-- **FastAPI** (0.104.1) - Modern async web framework
-- **Uvicorn** (0.24.0) - ASGI server with hot reload
-- **Pydantic** (2.5.0) - Data validation
-
-**Install:**
-
-```bash
-pip install -r Luna-Backend/requirements.txt
-
-```
+| Package | Version | Purpose |
+|---------|---------|---------|
+| FastAPI | 0.115.0 | Async web framework |
+| Uvicorn | 0.32.0 | ASGI server |
+| Pydantic | 2.9.0 | Data validation |
+| SQLAlchemy | 2.0.35 | Async ORM |
+| aiosqlite | 0.20.0 | SQLite async driver |
 
 ---
 
 ## 🎨 Design Decisions
 
-### MVVM Architecture (iOS)
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Architecture** | MVVM | Works seamlessly with SwiftUI's @Published, testable |
+| **Backend** | FastAPI + SQLite | Built-in async, Pydantic validation, no separate DB server |
+| **iOS Dependencies** | Native only | Lightweight, Apple-supported, URLSession sufficient |
+| **State Management** | Singleton AppState | Single source of truth for global state |
+| **Theme System** | Custom Theme.swift | Centralized colors, fonts, spacing, animations |
+| **Dark Mode** | ThemeManager + @AppStorage | Persistent preference with system integration |
+| **Auth** | Demo mode (4 users) | User switcher for testing different personas |
+| **Action Threshold** | 5+ users | Triggers booking agent for popular venues |
 
-**Chosen:** MVVM over MVC/VIPER/Redux. **Why:** Separation of concerns, testability, works seamlessly with SwiftUI's @Published. **Trade-off:** More files, better maintainability.
-
-### FastAPI (Backend)
-
-**Chosen:** FastAPI over Django/Flask. **Why:** Built-in async, type safety with Pydantic, auto-generated docs, modern Python. **Trade-off:** Newer framework, excellent docs.
-
-### SQLite (Database)
-
-**Chosen:** SQLite with SQLAlchemy async ORM over PostgreSQL/MongoDB. **Why:** No separate server, file-based persistence, easy migration path. **Trade-off:** Single-server only, perfect for prototype.
-
-### Zero iOS Dependencies
-
-**Chosen:** Native frameworks only (SwiftUI, Combine, Foundation) over Alamofire/Kingfisher. **Why:** Lightweight, simple, Apple-supported, URLSession sufficient. **Trade-off:** More boilerplate, simpler overall.
-
-### Hardcoded Authentication
-
-**Chosen:** Hardcoded `user_1` for demo. **Why:** Focus on core features, simplifies demo, faster testing. **Trade-off:** Not production-ready, sufficient for prototype.
+---
 
 ## 📊 Project Statistics
 
 | Metric | Value |
-| --- | --- |
-| Development Time | 72 hours (3 days) |
-| iOS Views | 5 screens + 6 components |
-| API Endpoints | 8 fully functional |
-| Database Models | 6 SQLAlchemy models |
-| Test Data | 8 users, 12 venues, 28 friendships |
+|--------|-------|
+| iOS Views | 11 screens + 14 components |
+| API Endpoints | 9 fully functional |
+| Database Models | 7 SQLAlchemy tables |
+| Tab Navigation | 4 tabs |
+| Demo Users | 4 switchable |
 | Dependencies (iOS) | 0 (native only) |
-| Dependencies (Backend) | 6 (FastAPI, Uvicorn, Pydantic, SQLAlchemy, etc.) |
+| Dependencies (Backend) | 6 packages |
+
+---
+
+## 🤖 AI & Third-Party Resources
+
+**Coding Agents Used:**
+- **GitHub Copilot** - Code completion and boilerplate generation throughout development
+- **Claude AI** - Architecture planning, complex logic implementation, and code review
+
+**Templates & Resources:**
+- SwiftUI MVVM patterns from Apple's documentation
+- FastAPI async patterns from official tutorials
+- Haversine distance formula for proximity calculations
 
 ---
 
 ## 📄 License
 
-This project is a portfolio/assessment application demonstrating full-stack iOS development skills. It is not licensed for commercial use.
-
-**Built for:** Luna Community Take-Home Assessment
-
-**Purpose:** Showcase modern iOS development with SwiftUI, FastAPI, MVVM architecture, and production-ready code quality
+Portfolio/assessment application. Not licensed for commercial use.
 
 ---
 
@@ -373,16 +240,4 @@ This project is a portfolio/assessment application demonstrating full-stack iOS 
 
 **Built with ❤️ by Krutin Rathod**
 
-**Tech Stack:** Swift 5.9 • SwiftUI • Python 3.10 • FastAPI • SQLAlchemy • SQLite
-
-**Status:** ✅ Production-Ready • Zero Critical Bugs • Fully Documented
-
-**Special Thanks:**
-
-- GitHub Copilot and Claude AI for accelerating development
-- Luna Community for the thoughtful assessment prompt
-- Apple for world-class development tools
-
----
-
-🎉 **Ready to explore venues? Start the backend server and launch the app!**
+Swift 5.9 • SwiftUI • Python 3.10 • FastAPI • SQLAlchemy • SQLite
