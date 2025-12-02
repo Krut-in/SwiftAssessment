@@ -157,13 +157,8 @@ struct VenueFeedView: View {
     // MARK: - View Components
     
     private var loadingView: some View {
-        VStack(spacing: Theme.Layout.spacing) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primary))
-                .scaleEffect(1.5)
-            Text("Loading venues...")
-                .font(Theme.Fonts.subheadline)
-                .foregroundColor(Theme.Colors.textSecondary)
+        ScrollView {
+            SkeletonLoadingView(count: 4)
         }
     }
     

@@ -79,20 +79,14 @@ struct SocialFeedView: View {
     
     /// Loading skeleton view
     private var loadingView: some View {
-        VStack(spacing: Theme.Layout.largeSpacing) {
-            Spacer()
-            
-            ProgressView()
-                .scaleEffect(1.5)
-            
-            Text("Loading friend activity...")
-                .font(Theme.Fonts.callout)
-                .foregroundColor(Theme.Colors.textSecondary)
-            
-            Spacer()
+        ScrollView {
+            VStack(spacing: Theme.Layout.spacing) {
+                ForEach(0..<5, id: \.self) { _ in
+                    SkeletonActivityCard()
+                }
+            }
+            .padding()
         }
-        .frame(maxWidth: .infinity)
-        .background(Theme.Colors.background)
     }
     
     /// Empty state view

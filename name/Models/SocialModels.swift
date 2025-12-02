@@ -198,7 +198,7 @@ struct InterestActivity: Codable, Identifiable, Hashable {
         let totalCount: Int
         
         enum CodingKeys: String, CodingKey {
-            case activities
+            case activities = "interest_activities"
             case highlightedVenues = "highlighted_venues"
             case hasMore = "has_more"
             case page
