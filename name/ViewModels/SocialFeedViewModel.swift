@@ -45,7 +45,7 @@ class SocialFeedViewModel: ObservableObject {
     
     init(
         apiService: APIServiceProtocol = APIService(),
-        analytics: AnalyticsServiceProtocol = AnalyticsService.shared,
+        analytics: AnalyticsServiceProtocol,
         userId: String = "user_1"  // Default to primary user
     ) {
         self.apiService = apiService

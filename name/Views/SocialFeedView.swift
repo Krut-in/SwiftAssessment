@@ -27,7 +27,7 @@ struct SocialFeedView: View {
     
     // MARK: - Properties
     
-    @StateObject private var viewModel = SocialFeedViewModel()
+    @StateObject private var viewModel = SocialFeedViewModel(analytics: AnalyticsService.shared)
     @State private var selectedVenueId: String?
     
     // MARK: - Body

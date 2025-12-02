@@ -418,10 +418,12 @@ struct RecommendedVenueCardView: View {
             category: "Coffee Shop",
             description: "Artisanal coffee roasters",
             image: "https://picsum.photos/400/300",
+            images: nil,  // No multi-image data for preview
             address: "123 Main St",
             latitude: 40.7589,
             longitude: -73.9851,
-            distance_km: 2.5
+            distance_km: 2.5,
+            interested_count: 4  // For recommendation preview
         ),
         score: 8.5,
         reason: "Popular venue, Matches your interests",

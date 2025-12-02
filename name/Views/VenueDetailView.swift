@@ -54,45 +54,53 @@ struct VenueDetailView: View {
     
     init(venueId: String) {
         self.venueId = venueId
-        _viewModel = StateObject(wrappedValue: VenueDetailViewModel(venueId: venueId))
+        _viewModel = StateObject(wrappedValue: VenueDetailViewModel(venueId: venueId, appState: .shared))
     }
     
     // MARK: - Body
     
     var body: some View {
-        ScrollView {
+        ZStack {
+            ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if let venue = viewModel.venue {
-                    // Hero Image with overlay back button
+                    // Multi-Image Gallery with overlay back button
                     ZStack(alignment: .topLeading) {
-                        CachedAsyncImage(url: venue.image) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 300)
-                                .clipped()
-                        } placeholder: {
-                            Rectangle()
-                                .fill(Theme.Colors.secondaryBackground)
-                                .frame(height: 300)
-                                .overlay {
-                                    ProgressView()
+                        // TabView image carousel
+                        TabView {
+                            ForEach(venue.allImages, id: \.self) { imageUrl in
+                                CachedAsyncImage(url: imageUrl) { image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(height: 400)
+                                        .clipped()
+                                } placeholder: {
+                                    Rectangle()
+                                        .fill(Theme.Colors.secondaryBackground)
+                                        .frame(height: 400)
+                                        .overlay {
+                                            ProgressView()
+                                        }
+                                } failure: {
+                                    Rectangle()
+                                        .fill(categoryColor(for: venue.category).opacity(0.2))
+                                        .frame(height: 400)
+                                        .overlay {
+                                            VStack(spacing: 12) {
+                                                Image(systemName: categoryIcon(for: venue.category))
+                                                    .font(.system(size: 60))
+                                                    .foregroundColor(categoryColor(for: venue.category))
+                                                Text("Image unavailable")
+                                                    .font(Theme.Fonts.subheadline)
+                                                    .foregroundColor(Theme.Colors.textSecondary)
+                                            }
+                                        }
                                 }
-                        } failure: {
-                            Rectangle()
-                                .fill(categoryColor(for: venue.category).opacity(0.2))
-                                .frame(height: 300)
-                                .overlay {
-                                    VStack(spacing: 12) {
-                                        Image(systemName: categoryIcon(for: venue.category))
-                                            .font(.system(size: 60))
-                                            .foregroundColor(categoryColor(for: venue.category))
-                                        Text("Image unavailable")
-                                            .font(Theme.Fonts.subheadline)
-                                            .foregroundColor(Theme.Colors.textSecondary)
-                                    }
-                                }
+                            }
                         }
+                        .tabViewStyle(.page(indexDisplayMode: .always))
+                        .frame(height: 400)
                         
                         // Button overlay container
                         HStack {
@@ -241,20 +249,6 @@ struct VenueDetailView: View {
                         .disabled(viewModel.isTogglingInterest)
                         .padding(.vertical, 8)
                         
-                        // Success Message
-                        if let successMessage = viewModel.successMessage {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(Theme.Colors.success)
-                                Text(successMessage)
-                                    .font(Theme.Fonts.subheadline)
-                                    .foregroundColor(Theme.Colors.success)
-                            }
-                            .padding()
-                            .background(Theme.Colors.success.opacity(0.1))
-                            .cornerRadius(Theme.Layout.smallCornerRadius)
-                        }
-                        
                         // People Who Want to Go Section
                         if !viewModel.interestedUsers.isEmpty {
                             VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
@@ -355,14 +349,20 @@ struct VenueDetailView: View {
                     .frame(height: 400)
                 }
             }
-        }
+            }  // Close ScrollView
+            
+            // Interest Success Toast
+            InterestSuccessToast(isShowing: $viewModel.showInterestToast)
+                .zIndex(100)
+        }  // Close ZStack
         .enableNativeSwipeBack()
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .task {
             await viewModel.loadVenueDetail()
         }
-    }
+    }  // Close body
+    
     
     // MARK: - Helper Methods
     

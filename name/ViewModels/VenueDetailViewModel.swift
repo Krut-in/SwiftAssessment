@@ -75,7 +75,8 @@ class VenueDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isInterested = false
     @Published var isTogglingInterest = false
-    @Published var successMessage: String?
+    @Published var successMessage: String?  // Deprecated: replaced by showInterestToast
+    @Published var showInterestToast = false  // New: controls Interest Success Toast
     
     // MARK: - Private Properties
     
@@ -86,7 +87,7 @@ class VenueDetailViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(venueId: String, apiService: APIServiceProtocol = APIService(), appState: AppState = .shared) {
+    init(venueId: String, apiService: APIServiceProtocol = APIService(), appState: AppState) {
         self.venueId = venueId
         self.apiService = apiService
         self.appState = appState
@@ -145,7 +146,7 @@ class VenueDetailViewModel: ObservableObject {
     func toggleInterest() async {
         isTogglingInterest = true
         errorMessage = nil
-        successMessage = nil
+        successMessage = nil  // Clear old success message
         
         do {
             let response = try await appState.toggleInterest(venueId: venueId)
@@ -153,19 +154,9 @@ class VenueDetailViewModel: ObservableObject {
             // Reload venue details to get updated interested users count
             await loadVenueDetail()
             
-            // Show success feedback (action item notification handled by AppState)
-            self.successMessage = response.message ?? "Interest updated successfully"
-            
-            // Clear success message after 2 seconds
-            Task { [weak self] in
-                do {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
-                    await MainActor.run {
-                        self?.successMessage = nil
-                    }
-                } catch {
-                    // Task cancelled - safe to ignore
-                }
+            // Show toast for interest activation (not for removal)
+            if isInterested {
+                self.showInterestToast = true
             }
             
             self.isTogglingInterest = false

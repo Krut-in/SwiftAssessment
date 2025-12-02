@@ -218,14 +218,28 @@ async def get_user_interested_venues(session, user_id: str) -> List[Dict]:
         venues_list = []
         for venue in venues:
             interested_count = await get_interested_count(session, venue.id)
+            
+            # Get user to calculate distance
+            user = await session.get(UserDB, user_id)
+            distance_km = None
+            if user:
+                distance_km = haversine_distance(
+                    user.latitude, user.longitude,
+                    venue.latitude, venue.longitude
+                )
+            
             venues_list.append({
                 "id": venue.id,
                 "name": venue.name,
                 "category": venue.category,
                 "description": venue.description,
                 "image": venue.image,
+                "images": venue.images,  # Array for multi-image galleries
                 "address": venue.address,
-                "interested_count": interested_count
+                "latitude": venue.latitude,  # For "Get Directions" feature
+                "longitude": venue.longitude,  # For "Get Directions" feature
+                "interested_count": interested_count,
+                "distance_km": distance_km
             })
         
         return venues_list
@@ -685,20 +699,21 @@ async def get_venues(
 
 
 @app.get("/venues/{venue_id}")
-async def get_venue_detail(venue_id: str):
+async def get_venue_detail(venue_id: str, user_id: Optional[str] = None):
     """
     Get detailed information about a specific venue.
     
     Args:
         venue_id: The ID of the venue to retrieve
+        user_id: Optional user ID to calculate distance from user location
         
     Returns:
-        JSON object with venue details and list of interested users
+        JSON object with complete venue details and list of interested users
         
     Raises:
         HTTPException: 404 if venue not found
     """
-    logger.info(f"Fetching venue detail for venue_id: {venue_id}")
+    logger.info(f"Fetching venue detail for venue_id: {venue_id}, user_id: {user_id}")
     
     async with get_db() as session:
         venue = await session.get(VenueDB, venue_id)
@@ -709,15 +724,31 @@ async def get_venue_detail(venue_id: str):
         
         interested_users = await get_interested_users(session, venue_id)
         
+        # Build venue response with complete data
+        venue_data = {
+            "id": venue.id,
+            "name": venue.name,
+            "category": venue.category,
+            "description": venue.description,
+            "image": venue.image,
+            "images": venue.images,  # Array of image URLs for galleries
+            "address": venue.address,
+            "latitude": venue.latitude,
+            "longitude": venue.longitude
+        }
+        
+        # Calculate distance if user_id provided
+        if user_id:
+            user = await session.get(UserDB, user_id)
+            if user:
+                distance_km = haversine_distance(
+                    user.latitude, user.longitude,
+                    venue.latitude, venue.longitude
+                )
+                venue_data["distance_km"] = distance_km
+        
         return {
-            "venue": {
-                "id": venue.id,
-                "name": venue.name,
-                "category": venue.category,
-                "description": venue.description,
-                "image": venue.image,
-                "address": venue.address
-            },
+            "venue": venue_data,
             "interested_users": interested_users
         }
 
@@ -1046,7 +1077,10 @@ async def get_recommendations(user_id: str):
                     "category": venue.category,
                     "description": venue.description,
                     "image": venue.image,
+                    "images": venue.images,  # Array for multi-image galleries
                     "address": venue.address,
+                    "latitude": venue.latitude,  # For "Get Directions" feature
+                    "longitude": venue.longitude,  # For "Get Directions" feature
                     "interested_count": total_interested,
                     "distance_km": distance_km
                 },

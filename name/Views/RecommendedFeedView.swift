@@ -38,7 +38,7 @@ struct RecommendedFeedView: View {
     
     // MARK: - Properties
     
-    @StateObject private var viewModel = RecommendedFeedViewModel()
+    @StateObject private var viewModel = RecommendedFeedViewModel(appState: .shared)
     @ObservedObject private var appState = AppState.shared
     
     // MARK: - Body

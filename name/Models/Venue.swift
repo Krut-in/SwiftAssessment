@@ -49,10 +49,21 @@ struct Venue: Codable, Identifiable, Hashable {
     let category: String
     let description: String
     let image: String
+    let images: [String]?  // Optional array of image URLs for multi-image galleries
     let address: String
     let latitude: Double?
     let longitude: Double?
     let distance_km: Double?
+    let interested_count: Int?  // For recommendation responses
+    
+    /// Returns all available images for the venue
+    /// Falls back to single image if images array is not available
+    var allImages: [String] {
+        if let images = images, !images.isEmpty {
+            return images
+        }
+        return [image]  // Backward compatibility: single image as array
+    }
     
     /// Custom coding keys to match backend API JSON format
     enum CodingKeys: String, CodingKey {
@@ -61,10 +72,12 @@ struct Venue: Codable, Identifiable, Hashable {
         case category
         case description
         case image
+        case images  // New field for multi-image support
         case address
         case latitude
         case longitude
         case distance_km
+        case interested_count  // For recommendation responses
     }
 }
 

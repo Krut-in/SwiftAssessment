@@ -85,7 +85,7 @@ class ProfileViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(apiService: APIServiceProtocol = APIService(), appState: AppState = .shared) {
+    init(userId: String, apiService: APIServiceProtocol = APIService(), appState: AppState) {
         self.apiService = apiService
         self.appState = appState
         

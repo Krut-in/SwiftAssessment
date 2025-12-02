@@ -36,7 +36,7 @@ struct VenueFeedView: View {
     
     // MARK: - Properties
     
-    @StateObject private var viewModel = VenueFeedViewModel()
+    @StateObject private var viewModel = VenueFeedViewModel(appState: .shared)
     @ObservedObject private var appState = AppState.shared
     @AppStorage("venueViewMode") private var viewMode: ViewMode = .list
     @State private var selectedVenueId: String?

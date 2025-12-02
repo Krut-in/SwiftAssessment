@@ -88,7 +88,8 @@ class VenueDB(Base):
         name: Name of the venue
         category: Category type (e.g., "Coffee Shop", "Restaurant")
         description: Detailed description of the venue
-        image: URL to venue's image
+        image: URL to venue's primary image (for backward compatibility)
+        images: JSON array of image URLs for multi-image galleries (optional)
         address: Physical address of the venue
         latitude: Geographic latitude coordinate
         longitude: Geographic longitude coordinate
@@ -101,6 +102,7 @@ class VenueDB(Base):
     category = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
     image = Column(String(500), nullable=False)
+    images = Column(JSON, nullable=True)  # Store array of image URLs as JSON
     address = Column(String(500), nullable=False)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)

@@ -36,7 +36,7 @@ class AppState: ObservableObject {
     
     // MARK: - Singleton
     
-    static let shared = AppState()
+    nonisolated(unsafe) static let shared = AppState()
     
     // MARK: - Published Properties
     

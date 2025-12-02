@@ -64,7 +64,8 @@ class Venue(BaseModel):
         name: Name of the venue
         category: Category type (e.g., "Coffee Shop", "Restaurant")
         description: Detailed description of the venue
-        image: URL to venue's image
+        image: URL to venue's primary image (for backward compatibility)
+        images: List of image URLs for multi-image galleries (optional)
         address: Physical address of the venue
         latitude: Geographic latitude coordinate (optional)
         longitude: Geographic longitude coordinate (optional)
@@ -75,6 +76,7 @@ class Venue(BaseModel):
     category: str
     description: str
     image: str
+    images: Optional[List[str]] = None
     address: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None

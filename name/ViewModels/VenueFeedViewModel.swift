@@ -95,7 +95,7 @@ class VenueFeedViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(apiService: APIServiceProtocol = APIService(), appState: AppState = .shared, persistence: PersistenceController = .shared) {
+    init(apiService: APIServiceProtocol = APIService(), appState: AppState, persistence: PersistenceController = .shared) {
         self.apiService = apiService
         self.appState = appState
         self.persistence = persistence
@@ -116,7 +116,8 @@ class VenueFeedViewModel: ObservableObject {
         // Load from cache first for instant UI
         if hasCached {
             let cachedVenus = persistence.fetchCachedVenues()
-            self.venues = self.sortVenues(cachedVenus)
+            // Trust cached order (matches last server response)
+            self.venues = cachedVenus
             if let cacheTime = persistence.getCacheTimestamp() {
                 self.lastUpdated = cacheTime
             }
@@ -134,7 +135,8 @@ class VenueFeedViewModel: ObservableObject {
             persistence.saveVenues(fetchedVenues)
             
             // Update UI - already on main thread due to @MainActor
-            self.venues = self.sortVenues(fetchedVenues)
+            // Trust backend-provided sort order (server-side sorting)
+            self.venues = fetchedVenues
             self.isLoading = false
             self.lastUpdated = Date()
         } catch let error as APIError {
@@ -201,41 +203,5 @@ class VenueFeedViewModel: ObservableObject {
     /// Returns formatted relative time since last update
     var lastUpdatedText: String {
         lastUpdated?.relativeTimeString() ?? "Never"
-    }
-    
-    // MARK: - Private Methods
-    
-    /// Sorts venues based on the current sort option
-    private func sortVenues(_ venues: [VenueListItem]) -> [VenueListItem] {
-        switch filters.sortBy {
-        case .distance:
-            return venues.sorted {
-                // Sort by distance ascending (closest first)
-                // Treat nil distance as farthest
-                guard let dist1 = $0.distance_km else { return false }
-                guard let dist2 = $1.distance_km else { return true }
-                return dist1 < dist2
-            }
-            
-        case .popularity:
-            return venues.sorted {
-                // Sort by interested count descending (highest first)
-                if $0.interested_count != $1.interested_count {
-                    return $0.interested_count > $1.interested_count
-                }
-                // Secondary sort by name
-                return $0.name < $1.name
-            }
-            
-        case .name:
-            return venues.sorted {
-                // Sort by name ascending (A-Z)
-                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
-            
-        case .friends:
-            // For now, fallback to popularity as friend data might be limited in list item
-            return venues.sorted { $0.interested_count > $1.interested_count }
-        }
     }
 }

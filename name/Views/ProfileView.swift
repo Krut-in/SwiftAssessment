@@ -46,7 +46,7 @@ struct ProfileView: View {
     
     // MARK: - Properties
     
-    @StateObject private var viewModel = ProfileViewModel()
+    @StateObject private var viewModel = ProfileViewModel(userId: "user_1", appState: .shared)
     @ObservedObject private var appState = AppState.shared
     
     // MARK: - State
