@@ -102,6 +102,7 @@ protocol APIServiceProtocol {
     func completeActionItem(itemId: String, userId: String) async throws -> SuccessResponse
     func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse
     func fetchActivities(userId: String, page: Int, limit: Int) async throws -> ActivitiesResponse
+    func fetchSocialFeed(userId: String, page: Int, limit: Int, since: Date?) async throws -> SocialFeedResponse
 }
 
 // MARK: - API Service Implementation
@@ -249,6 +250,30 @@ class APIService: ObservableObject, APIServiceProtocol {
             URLQueryItem(name: "limit", value: String(limit))
         ]
         return try await performRequest(endpoint: "/activities", method: "GET", queryItems: queryItems)
+    }
+    
+    /// Fetches comprehensive social feed with friend activities and highlighted venues
+    /// - Parameters:
+    ///   - userId: User identifier to fetch friend activities
+    ///   - page: Page number for pagination
+    ///   - limit: Number of activities per page (max 100)
+    ///   - since: Optional timestamp for incremental updates (real-time polling)
+    /// - Returns: SocialFeedResponse with interest activities and highlighted venues
+    func fetchSocialFeed(userId: String, page: Int = 1, limit: Int = 20, since: Date? = nil) async throws -> SocialFeedResponse {
+        var queryItems = [
+            URLQueryItem(name: "user_id", value: userId),
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "limit", value: String(limit))
+        ]
+        
+        // Add since parameter if provided for incremental updates
+        if let since = since {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            queryItems.append(URLQueryItem(name: "since", value: formatter.string(from: since)))
+        }
+        
+        return try await performRequest(endpoint: "/social/feed", method: "GET", queryItems: queryItems)
     }
     
     // MARK: - Private Helper Methods

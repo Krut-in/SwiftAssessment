@@ -59,6 +59,14 @@ struct SocialFeedView: View {
             .task {
                 await viewModel.loadActivities()
             }
+            .onAppear {
+                // Start auto-refresh for real-time updates (every 30 seconds)
+                viewModel.startAutoRefresh(interval: 30.0)
+            }
+            .onDisappear {
+                // Stop auto-refresh to save battery
+                viewModel.stopAutoRefresh()
+            }
         }
         .sheet(isPresented: $showPlanMeetupSheet) {
             if let venue = selectedHighlightedVenue {

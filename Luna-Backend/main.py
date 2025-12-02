@@ -31,6 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Database imports
 from database import init_db, close_db, get_db
@@ -1234,6 +1235,244 @@ async def get_activities(
             "limit": limit,
             "total_count": total_count
         }
+
+
+@app.get("/social/feed")
+async def get_social_feed(
+    user_id: str,
+    page: int = 1,
+    limit: int = 20,
+    since: Optional[str] = None
+):
+    """
+    Get comprehensive social feed with friend interest activities and highlighted venues.
+    
+    Returns friend activities in InterestActivity format plus venues where 5+ friends are interested.
+    Supports incremental updates via 'since' timestamp for real-time polling.
+    
+    Args:
+        user_id: User ID to get social feed for (REQUIRED)
+        page: Page number for pagination (default: 1)
+        limit: Number of activities per page (default: 20, max: 100)
+        since: ISO timestamp for incremental updates (optional)
+        
+    Returns:
+        JSON object with:
+        - interest_activities: Friend interest actions with full metadata
+        - highlighted_venues: Venues with 5+ interested friends
+        - has_more: Pagination flag
+        - page, limit, total_count: Pagination metadata
+        - new_count: Number of activities since 'since' timestamp
+    """
+    logger.info(f"Fetching social feed for user_id={user_id}, page={page}, limit={limit}, since={since}")
+    
+    # Validate pagination parameters
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 20
+    
+    # Parse since timestamp if provided
+    since_dt = None
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid since timestamp: {since}")
+    
+    async with get_db() as session:
+        # Get friend IDs
+        result = await session.execute(
+            select(FriendshipDB)
+            .where(
+                or_(
+                    FriendshipDB.user_id == user_id,
+                    FriendshipDB.friend_id == user_id
+                )
+            )
+        )
+        friendships = result.scalars().all()
+        
+        friend_ids = set()
+        for friendship in friendships:
+            if friendship.user_id == user_id:
+                friend_ids.add(friendship.friend_id)
+            else:
+                friend_ids.add(friendship.user_id)
+        
+        if not friend_ids:
+            # User has no friends
+            return {
+                "interest_activities": [],
+                "highlighted_venues": [],
+                "has_more": False,
+                "page": page,
+                "limit": limit,
+                "total_count": 0,
+                "new_count": 0
+            }
+        
+        # Build query for friend activities (interested actions only)
+        query = select(ActivityDB).options(
+            selectinload(ActivityDB.user),
+            selectinload(ActivityDB.venue)
+        ).where(
+            and_(
+                ActivityDB.user_id.in_(friend_ids),
+                ActivityDB.action == "interested"
+            )
+        )
+        
+        # Filter by since timestamp if provided
+        if since_dt:
+            query = query.where(ActivityDB.created_at > since_dt)
+        
+        # Order by most recent first
+        query = query.order_by(ActivityDB.created_at.desc())
+        
+        # Get total count
+        count_result = await session.execute(
+            select(func.count()).select_from(query.subquery())
+        )
+        total_count = count_result.scalar() or 0
+        
+        # Count new activities since 'since' for real-time updates
+        new_count = 0
+        if since_dt:
+            new_count = total_count
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+        
+        # Execute query
+        result = await session.execute(query)
+        activities_db = result.scalars().all()
+        
+        # Build interest activities in InterestActivity format
+        interest_activities = []
+        for activity in activities_db:
+            interest_activities.append({
+                "id": activity.id,
+                "user": {
+                    "id": activity.user.id,
+                    "name": activity.user.name,
+                    "avatar": activity.user.avatar
+                },
+                "venue": {
+                    "id": activity.venue.id,
+                    "name": activity.venue.name,
+                    "category": activity.venue.category,
+                    "image": activity.venue.image
+                },
+                "action": activity.action,
+                "timestamp": activity.created_at.isoformat(),
+                "is_active": True
+            })
+        
+        # Calculate highlighted venues (5+ friends interested)
+        highlighted_venues = await calculate_highlighted_venues(session, user_id, friend_ids)
+        
+        has_more = (offset + len(activities_db)) < total_count
+        
+        logger.info(f"Returning {len(interest_activities)} activities, {len(highlighted_venues)} highlighted venues (new: {new_count})")
+        
+        return {
+            "interest_activities": interest_activities,
+            "highlighted_venues": highlighted_venues,
+            "has_more": has_more,
+            "page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "new_count": new_count
+        }
+
+
+async def calculate_highlighted_venues(
+    session: AsyncSession,
+    user_id: str,
+    friend_ids: set,
+    threshold: int = 5
+) -> list:
+    """
+    Calculate highlighted venues where 5+ friends are interested.
+    
+    Args:
+        session: Database session
+        user_id: Current user ID
+        friend_ids: Set of friend IDs
+        threshold: Minimum friend count (default: 5)
+        
+    Returns:
+        List of highlighted venue dictionaries
+    """
+    # Get all interests from friends
+    result = await session.execute(
+        select(InterestDB)
+        .options(selectinload(InterestDB.venue))
+        .where(InterestDB.user_id.in_(friend_ids))
+    )
+    friend_interests = result.scalars().all()
+    
+    # Group by venue
+    venue_friends = {}
+    for interest in friend_interests:
+        venue_id = interest.venue_id
+        if venue_id not in venue_friends:
+            venue_friends[venue_id] = {
+                "venue": interest.venue,
+                "friends": [],
+                "timestamps": []
+            }
+        
+        # Get user info
+        user_result = await session.execute(
+            select(UserDB).where(UserDB.id == interest.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        
+        if user:
+            venue_friends[venue_id]["friends"].append({
+                "id": user.id,
+                "name": user.name,
+                "avatar_url": user.avatar,
+                "interested_timestamp": interest.created_at.isoformat()
+            })
+            venue_friends[venue_id]["timestamps"].append(interest.created_at)
+    
+    # Filter venues with threshold+ friends
+    highlighted_venues = []
+    for venue_id, data in venue_friends.items():
+        friend_count = len(data["friends"])
+        if friend_count >= threshold:
+            venue = data["venue"]
+            last_activity = max(data["timestamps"])
+            
+            # Also check total interested count (all users, not just friends)
+            total_result = await session.execute(
+                select(func.count())
+                .select_from(InterestDB)
+                .where(InterestDB.venue_id == venue_id)
+            )
+            total_interested = total_result.scalar() or 0
+            
+            highlighted_venues.append({
+                "id": f"highlight_{venue_id}",
+                "venue_id": venue_id,
+                "venue_name": venue.name,
+                "venue_image_url": venue.image,
+                "venue_category": venue.category,
+                "venue_address": venue.address,
+                "interested_friends": data["friends"][:10],  # Limit to 10 for display
+                "total_interested_count": total_interested,
+                "threshold": threshold,
+                "last_activity_timestamp": last_activity.isoformat()
+            })
+    
+    # Sort by last activity (most recent first)
+    highlighted_venues.sort(key=lambda x: x["last_activity_timestamp"], reverse=True)
+    
+    return highlighted_venues
 
 
 @app.post("/action-items/{item_id}/complete")
