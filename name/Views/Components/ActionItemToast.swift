@@ -124,8 +124,8 @@ struct ActionItemToast: View {
 
     
     private func navigateToProfile() {
-        // Navigate to profile tab (index 2)
-        appState.selectedTab = 2
+        // Navigate to profile tab (index 3)
+        appState.selectedTab = 3
         dismissToast()
     }
     

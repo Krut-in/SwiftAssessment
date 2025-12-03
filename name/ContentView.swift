@@ -32,37 +32,33 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
-            TabView(selection: $appState.selectedTab) {
-                // Discover Tab
-                VenueFeedView()
-                    .tabItem {
-                        Label("Discover", systemImage: "house.fill")
-                    }
-                    .tag(0)
-                
-                // For You Tab
-                RecommendedFeedView()
-                    .tabItem {
-                        Label("For You", systemImage: "star.fill")
-                    }
-                    .tag(1)
-                
-                // Social Tab
-                SocialFeedView()
-                    .tabItem {
-                        Label("Social", systemImage: "person.2.fill")
-                    }
-                    .tag(2)
-                    .badge(appState.newSocialActivityCount > 0 ? appState.newSocialActivityCount : 0)
-                
-                // Profile Tab
-                ProfileView()
-                    .tabItem {
-                        Label("Profile", systemImage: "person.fill")
-                    }
-                    .tag(3)
-                    .badge(appState.actionItemCount > 0 ? "\(appState.actionItemCount)" : "")
+            // Current view based on selectedTab
+            Group {
+                switch appState.selectedTab {
+                case 0:
+                    VenueFeedView()
+                case 1:
+                    RecommendedFeedView()
+                case 2:
+                    SocialFeedView()
+                case 3:
+                    ProfileView()
+                default:
+                    VenueFeedView()
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            // Custom floating tab bar at bottom
+            VStack {
+                Spacer()
+                CustomTabBarView(
+                    selectedTab: $appState.selectedTab,
+                    socialBadgeCount: appState.newSocialActivityCount,
+                    profileBadgeCount: appState.actionItemCount
+                )
+            }
+            .zIndex(100)
             
             // Global Action Item Toast Overlay
             ActionItemToast(

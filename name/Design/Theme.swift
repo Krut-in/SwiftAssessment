@@ -237,6 +237,18 @@ struct Theme {
         
         /// Snappy spring - Quick responsive feel
         static let snappy = SwiftUI.Animation.spring(response: 0.25, dampingFraction: 0.8)
+        
+        /// Tab selection spring - Bouncy with overshoot
+        static let tabSelection = SwiftUI.Animation.spring(response: 0.4, dampingFraction: 0.65)
+        
+        /// Icon micro-interaction - Quick playful bounce
+        static let iconBounce = SwiftUI.Animation.spring(response: 0.3, dampingFraction: 0.6)
+        
+        /// Badge pulse - Continuous gentle pulsing
+        static let badgePulse = SwiftUI.Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)
+        
+        /// Count-up animation - Smooth number transitions
+        static let countUp = SwiftUI.Animation.spring(response: 0.25, dampingFraction: 0.75)
     }
     
     // MARK: - Elevation (Shadow System)
