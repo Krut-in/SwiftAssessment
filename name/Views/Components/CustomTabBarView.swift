@@ -34,6 +34,7 @@ struct CustomTabBarView: View {
     let profileBadgeCount: Int
     
     @Namespace private var animation
+    @Environment(\.colorScheme) private var colorScheme
     
     // MARK: - Tab Items
     
@@ -65,7 +66,10 @@ struct CustomTabBarView: View {
                 RoundedRectangle(cornerRadius: 35)
                     .fill(
                         LinearGradient(
-                            colors: [
+                            colors: colorScheme == .dark ? [
+                                Color.white.opacity(0.15),
+                                Color.white.opacity(0.05)
+                            ] : [
                                 Color.white.opacity(0.25),
                                 Color.white.opacity(0.1)
                             ],
@@ -82,7 +86,10 @@ struct CustomTabBarView: View {
                 RoundedRectangle(cornerRadius: 35)
                     .strokeBorder(
                         LinearGradient(
-                            colors: [
+                            colors: colorScheme == .dark ? [
+                                Color.white.opacity(0.25),
+                                Color.white.opacity(0.05)
+                            ] : [
                                 Color.white.opacity(0.5),
                                 Color.white.opacity(0.1)
                             ],
@@ -97,7 +104,7 @@ struct CustomTabBarView: View {
                     .strokeBorder(
                         LinearGradient(
                             colors: [
-                                Theme.Colors.primary.opacity(0.3),
+                                Theme.Colors.primary.opacity(colorScheme == .dark ? 0.4 : 0.3),
                                 Color.clear
                             ],
                             startPoint: .top,
@@ -108,7 +115,7 @@ struct CustomTabBarView: View {
                     .blur(radius: 2)
             }
             .shadow(color: Theme.Colors.primary.opacity(0.15), radius: 20, x: 0, y: 8)
-            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1), radius: 10, x: 0, y: 4)
         )
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
@@ -196,11 +203,14 @@ struct CustomTabBarView: View {
                             RoundedRectangle(cornerRadius: 35)
                                 .fill(.ultraThinMaterial)
                             
-                            // White gradient overlay for glass effect
+                            // White gradient overlay for glass effect - dark mode adaptive
                             RoundedRectangle(cornerRadius: 35)
                                 .fill(
                                     LinearGradient(
-                                        colors: [
+                                        colors: colorScheme == .dark ? [
+                                            Color.white.opacity(0.15),
+                                            Color.white.opacity(0.03)
+                                        ] : [
                                             Color.white.opacity(0.2),
                                             Color.white.opacity(0.05)
                                         ],
@@ -209,11 +219,14 @@ struct CustomTabBarView: View {
                                     )
                                 )
                             
-                            // Subtle border for definition
+                            // Subtle border for definition - dark mode adaptive
                             RoundedRectangle(cornerRadius: 35)
                                 .strokeBorder(
                                     LinearGradient(
-                                        colors: [
+                                        colors: colorScheme == .dark ? [
+                                            Color.white.opacity(0.2),
+                                            Color.white.opacity(0.05)
+                                        ] : [
                                             Color.white.opacity(0.3),
                                             Color.white.opacity(0.1)
                                         ],
@@ -225,8 +238,8 @@ struct CustomTabBarView: View {
                         }
                         .padding(.vertical, 4)
                         .matchedGeometryEffect(id: "TAB_INDICATOR", in: animation)
-                        .shadow(color: Color.white.opacity(0.2), radius: 8, x: 0, y: 2)
-                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                        .shadow(color: Color.white.opacity(colorScheme == .dark ? 0.15 : 0.2), radius: 8, x: 0, y: 2)
+                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1), radius: 4, x: 0, y: 2)
                     }
                 }
             )
