@@ -140,15 +140,37 @@ struct RecommendedFeedView: View {
         )
     }
     
+    // MARK: - Dynamic Header Helpers
+    
+    /// Returns dynamic greeting based on current time
+    private var dynamicGreeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        
+        switch hour {
+        case 6..<11:
+            return "☀️ Start your day right"
+        case 11..<14:
+            return "🍽 Perfect lunch spots for you"
+        case 14..<18:
+            return "✨ Discover something new"
+        case 18..<22:
+            return "🌆 Evening plans sorted"
+        default:
+            return "🌙 Late-night favorites"
+        }
+    }
+    
     private var recommendationListView: some View {
         ScrollView {
             LazyVStack(spacing: Theme.Layout.spacing) {
-                // Header Section with Sort Menu
+                // Header Section with Dynamic Greeting
                 VStack(spacing: Theme.Layout.spacing) {
                     HStack {
-                        Text("For You")
+                        Text(dynamicGreeting)
                             .font(Theme.Fonts.title2)
                             .fontWeight(.bold)
+                            .transition(.opacity)
+                            .id(dynamicGreeting) // Force view update on greeting change
                         
                         Spacer()
                         
@@ -157,6 +179,7 @@ struct RecommendedFeedView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .animation(Theme.Animation.gentle, value: dynamicGreeting)
                     
                     // Category Filter Bar
                     if !viewModel.availableCategories.isEmpty {
@@ -181,14 +204,15 @@ struct RecommendedFeedView: View {
                     }
                 } else {
                     // Show filtered recommendations
-                    ForEach(viewModel.filteredRecommendations) { recommendation in
+                    ForEach(Array(viewModel.filteredRecommendations.enumerated()), id: \.element.id) { index, recommendation in
                         NavigationLink(destination: VenueDetailView(venueId: recommendation.venue.id)) {
                             RecommendedVenueCardView(
                                 recommendation: recommendation,
                                 onInterestToggled: {
                                     // No need to reload recommendations here
                                     // AppState will handle the update
-                                }
+                                },
+                                isAlternateLayout: index % 3 == 2 // Every 3rd card (indices 2, 5, 8, etc.)
                             )
                         }
                         .buttonStyle(PlainButtonStyle())

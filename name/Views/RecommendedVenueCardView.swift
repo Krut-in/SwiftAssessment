@@ -69,6 +69,7 @@ struct RecommendedVenueCardView: View {
     
     let recommendation: RecommendationItem
     var onInterestToggled: (() -> Void)? = nil
+    let isAlternateLayout: Bool
     
     // MARK: - State
     
@@ -93,9 +94,11 @@ struct RecommendedVenueCardView: View {
     /// - Parameters:
     ///   - recommendation: The recommendation item containing venue, score, and reason
     ///   - onInterestToggled: Optional callback invoked after successful interest toggle
-    init(recommendation: RecommendationItem, onInterestToggled: (() -> Void)? = nil) {
+    ///   - isAlternateLayout: Whether to use horizontal layout (default: false)
+    init(recommendation: RecommendationItem, onInterestToggled: (() -> Void)? = nil, isAlternateLayout: Bool = false) {
         self.recommendation = recommendation
         self.onInterestToggled = onInterestToggled
+        self.isAlternateLayout = isAlternateLayout
         // Initialize local state with recommendation data
         _localTotalInterested = State(initialValue: recommendation.total_interested)
         _localFriendsInterested = State(initialValue: recommendation.friends_interested)
@@ -128,75 +131,31 @@ struct RecommendedVenueCardView: View {
     // MARK: - Body
     
     var body: some View {
+        Group {
+            if isAlternateLayout {
+                alternateLayoutView
+            } else {
+                standardLayoutView
+            }
+        }
+    }
+    
+    // MARK: - Layout Views
+    
+    /// Standard vertical layout
+    private var standardLayoutView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // MARK: Venue Image with Score Badge
+            // MARK: Venue Image with Match Meter
             ZStack(alignment: .topTrailing) {
-                // Cached venue image with loading states
-                CachedAsyncImage(url: recommendation.venue.image) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(4/3, contentMode: .fill)
-                } placeholder: {
-                    Rectangle()
-                        .fill(Theme.Colors.secondaryBackground)
-                        .aspectRatio(4/3, contentMode: .fill)
-                        .overlay {
-                            ProgressView()
-                        }
-                } failure: {
-                    Rectangle()
-                        .fill(categoryColor(for: recommendation.venue.category).opacity(0.2))
-                        .aspectRatio(4/3, contentMode: .fill)
-                        .overlay {
-                            VStack(spacing: 8) {
-                                Image(systemName: categoryIcon(for: recommendation.venue.category))
-                                    .font(.system(size: 40))
-                                    .foregroundColor(categoryColor(for: recommendation.venue.category))
-                                Text("Image unavailable")
-                                    .font(Theme.Fonts.caption)
-                                    .foregroundColor(Theme.Colors.textSecondary)
-                            }
-                        }
-                }
-                .clipped()
+                venueImageView
                 
-                // MARK: Recommendation Score Badge with Info Button
-                HStack(spacing: 6) {
-                    Text(scoreText)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    // Info button (only show if breakdown available)
-                    if recommendation.score_breakdown != nil {
-                        Button {
-                            showScoreBreakdown.toggle()
-                        } label: {
-                            Image(systemName: "info.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(.white.opacity(0.9))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    LinearGradient(
-                        colors: [Color.green.opacity(0.8), Color.teal.opacity(0.8)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                // MARK: Match Meter Badge
+                MatchMeterView(
+                    score: recommendation.score,
+                    scoreBreakdown: recommendation.score_breakdown,
+                    onInfoTap: nil
                 )
-                .clipShape(Capsule())
-                .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 2)
                 .padding(12)
-                .accessibilityLabel("Recommendation score \(scoreText) out of 10")
-                .popover(isPresented: $showScoreBreakdown) {
-                    if let breakdown = recommendation.score_breakdown {
-                        ScoreBreakdownView(breakdown: breakdown)
-                            .presentationCompactAdaptation(.popover)
-                    }
-                }
             }
             
             // MARK: Venue Info Section
@@ -240,13 +199,15 @@ struct RecommendedVenueCardView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 
-                // MARK: Recommendation Reason
-                Text(recommendation.reason)
-                    .font(Theme.Fonts.subheadline)
-                    .foregroundColor(Theme.Colors.textSecondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel("Recommended because: \(recommendation.reason)")
+                // MARK: Why This Callout
+                WhyThisCallout(
+                    reason: recommendation.reason,
+                    category: recommendation.venue.category,
+                    scoreBreakdown: recommendation.score_breakdown,
+                    totalInterested: localTotalInterested,
+                    friendsInterested: localFriendsInterested,
+                    distanceKm: recommendation.venue.distance_km ?? 0.0
+                )
                 
                 // MARK: Interested Count
                 HStack(spacing: 4) {
@@ -266,7 +227,6 @@ struct RecommendedVenueCardView: View {
         .background(Theme.Colors.cardBackground)
         .cornerRadius(Theme.Layout.cornerRadius)
         .overlay(
-            // Gradient border to distinguish recommended venues
             RoundedRectangle(cornerRadius: Theme.Layout.cornerRadius)
                 .stroke(
                     LinearGradient(
@@ -279,6 +239,129 @@ struct RecommendedVenueCardView: View {
         )
         .elevationMedium()
         .transition(.scale(scale: 0.95).combined(with: .opacity))
+    }
+    
+    /// Alternate horizontal layout
+    private var alternateLayoutView: some View {
+        VStack(alignment: .leading, spacing: Theme.Layout.smallSpacing) {
+            HStack(alignment: .top, spacing: Theme.Layout.spacing) {
+                // Square image on left
+                venueImageView
+                    .frame(width: 140, height: 140)
+                    .clipped()
+                
+                // Content on right
+                VStack(alignment: .leading, spacing: Theme.Layout.smallSpacing) {
+                    // Category and heart button
+                    HStack {
+                        Text(recommendation.venue.category)
+                            .font(Theme.Fonts.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(categoryColor(for: recommendation.venue.category))
+                            .clipShape(Capsule())
+                        
+                        Spacer()
+                        
+                        // Heart Button
+                        Button {
+                            handleInterestTap()
+                        } label: {
+                            Image(systemName: isInterested ? "heart.fill" : "heart")
+                                .font(.system(size: 18))
+                                .foregroundColor(isInterested ? Theme.Colors.error : Theme.Colors.textSecondary)
+                                .frame(width: 44, height: 44)
+                        }
+                        .scaleEffect(isAnimating ? 1.2 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAnimating)
+                    }
+                    
+                    // Venue name
+                    Text(recommendation.venue.name)
+                        .font(Theme.Fonts.headline)
+                        .foregroundColor(Theme.Colors.textPrimary)
+                        .lineLimit(2)
+                    
+                    Spacer()
+                    
+                    // Match Meter
+                    HStack {
+                        MatchMeterView(
+                            score: recommendation.score,
+                            scoreBreakdown: recommendation.score_breakdown,
+                            onInfoTap: nil
+                        )
+                        
+                        Spacer()
+                    }
+                }
+            }
+            
+            // Why This Callout below
+            WhyThisCallout(
+                reason: recommendation.reason,
+                category: recommendation.venue.category,
+                scoreBreakdown: recommendation.score_breakdown,
+                totalInterested: localTotalInterested,
+                friendsInterested: localFriendsInterested,
+                distanceKm: recommendation.venue.distance_km ?? 0.0
+            )
+            
+            // Interested count
+            HStack(spacing: 4) {
+                Image(systemName: "person.2")
+                    .font(Theme.Fonts.caption)
+                    .foregroundColor(Theme.Colors.textSecondary)
+                Text(interestedCountText)
+                    .font(Theme.Fonts.subheadline)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+        }
+        .padding(Theme.Layout.spacing)
+        .background(Theme.Colors.cardBackground)
+        .cornerRadius(Theme.Layout.cornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Layout.cornerRadius)
+                .strokeBorder(
+                    style: StrokeStyle(lineWidth: 2, dash: [8, 4])
+                )
+                .foregroundColor(categoryColor(for: recommendation.venue.category))
+        )
+        .elevationMedium()
+        .transition(.scale(scale: 0.95).combined(with: .opacity))
+    }
+    
+    /// Reusable venue image view
+    private var venueImageView: some View {
+        CachedAsyncImage(url: recommendation.venue.image) { image in
+            image
+                .resizable()
+                .aspectRatio(isAlternateLayout ? nil : 4/3, contentMode: .fill)
+        } placeholder: {
+            Rectangle()
+                .fill(Theme.Colors.secondaryBackground)
+                .aspectRatio(isAlternateLayout ? nil : 4/3, contentMode: .fill)
+                .overlay {
+                    ProgressView()
+                }
+        } failure: {
+            Rectangle()
+                .fill(categoryColor(for: recommendation.venue.category).opacity(0.2))
+                .aspectRatio(isAlternateLayout ? nil : 4/3, contentMode: .fill)
+                .overlay {
+                    VStack(spacing: 8) {
+                        Image(systemName: categoryIcon(for: recommendation.venue.category))
+                            .font(.system(size: isAlternateLayout ? 24 : 32))
+                            .foregroundColor(categoryColor(for: recommendation.venue.category))
+                        Text("Image unavailable")
+                            .font(Theme.Fonts.caption)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                    }
+                }
+        }
+        .clipped()
     }
     
     // MARK: - Helper Methods
