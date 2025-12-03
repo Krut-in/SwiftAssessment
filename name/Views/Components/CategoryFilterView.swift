@@ -6,22 +6,21 @@
 //
 //  DESCRIPTION:
 //  Horizontal scrollable category filter bar for venue filtering.
-//  Displays filter chips with active state highlighting and count badges.
+//  Minimal design with icons and simple selection highlighting.
 //  
 //  KEY FEATURES:
-//  - Horizontal ScrollView for filter chips
-//  - Active filter highlighted with accent color
-//  - Count badges showing venue count per category
-//  - Smooth animations on filter selection
-//  - "All" option to clear filter
+//  - SF Symbol category icons
+//  - Clean selected state with solid background
+//  - Optional count display
+//  - Smooth selection animation
+//  - Full dark/light mode compatibility
 //  
 //  STATE MANAGEMENT:
 //  - selectedCategory: Currently selected category (nil = "All")
-//  - onCategorySelected: Callback when filter changes
 //  
 //  USAGE:
 //  CategoryFilterView(
-//      categories: ["All", "Coffee Shop", "Restaurant", "Bar"],
+//      categories: ["Coffee Shop", "Restaurant", "Bar"],
 //      categoryCounts: ["Coffee Shop": 3, "Restaurant": 5, "Bar": 2],
 //      selectedCategory: $selectedCategory
 //  )
@@ -45,7 +44,9 @@ struct CategoryFilterView: View {
                 // "All" filter chip
                 FilterChip(
                     title: "All",
+                    icon: "square.grid.2x2",
                     count: nil,
+                    color: Theme.Colors.primary,
                     isSelected: selectedCategory == nil,
                     action: {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -58,7 +59,9 @@ struct CategoryFilterView: View {
                 ForEach(categories, id: \.self) { category in
                     FilterChip(
                         title: category,
+                        icon: Theme.Colors.Category.icon(for: category),
                         count: categoryCounts[category],
+                        color: Theme.Colors.Category.color(for: category),
                         isSelected: selectedCategory == category,
                         action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -78,31 +81,37 @@ struct CategoryFilterView: View {
 struct FilterChip: View {
     
     let title: String
+    let icon: String
     let count: Int?
+    let color: Color
     let isSelected: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+            HStack(spacing: 6) {
+                // Category Icon
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
                 
-                if let count = count {
+                // Title - always show
+                Text(title)
+                    .font(Theme.Fonts.subheadline)
+                    .fontWeight(.medium)
+                
+                // Count (if available)
+                if let count = count, count > 0 {
                     Text("(\(count))")
-                        .font(.caption)
-                        .fontWeight(.medium)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(isSelected ? .white.opacity(0.8) : color.opacity(0.7))
                 }
             }
-            .foregroundColor(isSelected ? .white : .primary)
-            .padding(.horizontal, 16)
+            .foregroundColor(isSelected ? .white : color)
+            .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(isSelected ? Color.accentColor : Color.gray.opacity(0.15))
-            .clipShape(Capsule())
-            .overlay(
+            .background(
                 Capsule()
-                    .strokeBorder(isSelected ? Color.clear : Color.gray.opacity(0.3), lineWidth: 1)
+                    .fill(isSelected ? color : color.opacity(0.12))
             )
         }
         .buttonStyle(PlainButtonStyle())

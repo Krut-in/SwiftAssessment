@@ -109,6 +109,60 @@ struct Theme {
             
             /// Entertainment venues
             static let entertainment = Color(red: 1.0, green: 0.176, blue: 0.333) // Pink
+            
+            /// Returns a linear gradient for the given category (light to dark)
+            /// Compatible with both light and dark modes
+            static func gradient(for category: String) -> LinearGradient {
+                let color = self.color(for: category)
+                return LinearGradient(
+                    colors: [
+                        color.opacity(0.7),
+                        color
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            
+            /// Returns the category color for a given category string
+            static func color(for category: String) -> Color {
+                switch category.lowercased() {
+                case "coffee shop", "coffee", "café", "cafe":
+                    return coffee
+                case "restaurant", "food", "dining":
+                    return restaurant
+                case "bar", "nightlife", "pub", "lounge":
+                    return bar
+                case "museum", "cultural", "culture", "art", "gallery":
+                    return cultural
+                case "park", "outdoor", "nature":
+                    return outdoor
+                case "entertainment", "theater", "cinema":
+                    return entertainment
+                default:
+                    return Color(uiColor: .systemGray)
+                }
+            }
+            
+            /// Returns SF Symbol icon name for a given category
+            static func icon(for category: String) -> String {
+                switch category.lowercased() {
+                case "coffee shop", "coffee", "café", "cafe":
+                    return "cup.and.saucer.fill"
+                case "restaurant", "food", "dining":
+                    return "fork.knife"
+                case "bar", "nightlife", "pub", "lounge":
+                    return "wineglass.fill"
+                case "museum", "cultural", "culture", "art", "gallery":
+                    return "building.columns.fill"
+                case "park", "outdoor", "nature":
+                    return "leaf.fill"
+                case "entertainment", "theater", "cinema":
+                    return "theatermasks.fill"
+                default:
+                    return "mappin.circle.fill"
+                }
+            }
         }
         
         // MARK: Shadow Colors (Elevation System)
@@ -215,6 +269,28 @@ struct Theme {
         
         /// Icon size large (32pt)
         static let iconLarge: CGFloat = 32.0
+        
+        // MARK: Aspect Ratios
+        
+        /// Hero card image aspect ratio (16:9) - Cinematic widescreen
+        static let heroImageAspectRatio: CGFloat = 16.0 / 9.0
+        
+        /// Standard card image aspect ratio (4:3) - Balanced composition
+        static let standardImageAspectRatio: CGFloat = 4.0 / 3.0
+        
+        // MARK: Border and Accent Sizes
+        
+        /// Category accent border width (2pt) - Subtle but visible
+        static let categoryBorderWidth: CGFloat = 2.0
+        
+        /// Watermark icon size (80pt) - Large background accent
+        static let watermarkIconSize: CGFloat = 80.0
+        
+        /// Watermark opacity (0.05) - Subtle background element
+        static let watermarkOpacity: CGFloat = 0.05
+        
+        /// Category glow radius (4pt) - Soft accent halo
+        static let categoryGlowRadius: CGFloat = 4.0
     }
     
     // MARK: - Animation
@@ -249,6 +325,15 @@ struct Theme {
         
         /// Count-up animation - Smooth number transitions
         static let countUp = SwiftUI.Animation.spring(response: 0.25, dampingFraction: 0.75)
+        
+        /// Nearby venue pulse - Gentle attention-grabbing pulse
+        static let nearbyPulse = SwiftUI.Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true)
+        
+        /// Glow effect - Soft pulsing glow for category accents
+        static let glow = SwiftUI.Animation.easeInOut(duration: 1.8).repeatForever(autoreverses: true)
+        
+        /// Hero parallax - Subtle scroll-linked movement
+        static let heroParallax = SwiftUI.Animation.linear(duration: 0.1)
     }
     
     // MARK: - Elevation (Shadow System)

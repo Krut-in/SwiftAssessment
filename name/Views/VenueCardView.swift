@@ -99,12 +99,19 @@ struct VenueCardView: View {
     }
     
     /// Formatted interested count text with proper pluralization
+    /// Formatted interested count text with proper pluralization
     private var interestedCountText: String {
         if localInterestedCount == 1 {
             return "1 person interested"
         } else {
             return "\(localInterestedCount) people interested"
         }
+    }
+    
+    /// Returns true if the venue is nearby (<1km) and should pulse
+    private var shouldPulse: Bool {
+        guard let distance = venue.distance_km else { return false }
+        return distance < 1.0
     }
     
     // MARK: - Body
@@ -137,6 +144,13 @@ struct VenueCardView: View {
                                 .foregroundColor(Theme.Colors.textSecondary)
                         }
                     }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                // MARK: Category Watermark Icon
+                Image(systemName: categoryIcon(for: venue.category))
+                    .font(.system(size: Theme.Layout.watermarkIconSize))
+                    .foregroundColor(categoryColor(for: venue.category).opacity(Theme.Layout.watermarkOpacity))
+                    .padding(Theme.Layout.padding)
             }
             .clipped()
             
@@ -202,7 +216,17 @@ struct VenueCardView: View {
         }
         .background(Theme.Colors.cardBackground)
         .cornerRadius(Theme.Layout.cornerRadius)
+        .overlay(
+            // MARK: Subtle Category Border (minimal and clean)
+            RoundedRectangle(cornerRadius: Theme.Layout.cornerRadius)
+                .strokeBorder(
+                    categoryColor(for: venue.category).opacity(0.15),
+                    lineWidth: 0.5
+                )
+        )
         .elevationMedium()
+        .scaleEffect(shouldPulse ? 1.02 : 1.0)
+        .animation(shouldPulse ? Theme.Animation.nearbyPulse : nil, value: shouldPulse)
         .transition(.scale(scale: 0.95).combined(with: .opacity))
         .animation(Theme.Animation.spring, value: localInterestedCount)
     }
