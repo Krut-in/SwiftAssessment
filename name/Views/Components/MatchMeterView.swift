@@ -107,6 +107,11 @@ struct MatchMeterView: View {
                 .frame(width: 50, height: 50)
                 .rotationEffect(.degrees(-90))
             
+            // White background circle for score text (adapts to dark mode)
+            Circle()
+                .fill(Color(uiColor: .systemBackground))
+                .frame(width: 40, height: 40)
+            
             // Center score text
             Text(scoreText)
                 .font(.system(size: 16, weight: .semibold))

@@ -118,7 +118,7 @@ class APIService: ObservableObject, APIServiceProtocol {
     
     // MARK: - Initialization
     
-    nonisolated init(baseURL: String = "http://192.168.1.183:8000", session: URLSession = .shared) {
+    nonisolated init(baseURL: String = "http://172.20.10.2:8000", session: URLSession = .shared) {
         self.baseURL = baseURL
         
         // Use custom session with production configuration if using shared session

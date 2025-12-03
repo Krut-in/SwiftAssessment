@@ -1,2 +1,88 @@
 INFO:     Will watch for changes in these directories: ['/Users/krutinrahtod/Desktop/Desktop/WEB/webCodes/latestCodee/name/name/Luna-Backend']
-ERROR:    [Errno 48] Address already in use
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [25655] using WatchFiles
+INFO:     Started server process [25671]
+INFO:     Waiting for application startup.
+2025-12-03 15:31:27,330 - main - INFO - Starting Luna Backend API...
+2025-12-03 15:31:27,343 - database - INFO - Database engine created: sqlite+aiosqlite:///./luna.db
+2025-12-03 15:31:27,349 - database - INFO - Database tables created successfully
+2025-12-03 15:31:27,349 - database - INFO - Session maker created
+2025-12-03 15:31:27,357 - seed_data - INFO - Database already contains 15 users
+2025-12-03 15:31:27,357 - main - INFO - Luna Backend API ready
+INFO:     Application startup complete.
+INFO:     127.0.0.1:61131 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61135 - "GET / HTTP/1.1" 200 OK
+2025-12-03 15:31:37,156 - main - INFO - Fetching venues with filters: user_id=None, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=None
+2025-12-03 15:31:37,162 - main - INFO - Returning 20 venues (total: 20)
+INFO:     127.0.0.1:61139 - "GET /venues HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61166 - "GET / HTTP/1.1" 200 OK
+INFO:     172.20.10.2:61180 - "GET / HTTP/1.1" 200 OK
+2025-12-03 15:32:51,780 - main - INFO - Fetching venues with filters: user_id=None, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=None
+2025-12-03 15:32:51,792 - main - INFO - Returning 20 venues (total: 20)
+INFO:     172.20.10.2:61188 - "GET /venues HTTP/1.1" 200 OK
+2025-12-03 15:33:37,519 - main - INFO - Fetching user profile for user_id: user_2
+2025-12-03 15:33:37,534 - main - INFO - Fetching venues with filters: user_id=user_2, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=popularity
+2025-12-03 15:33:37,553 - main - INFO - Returning 20 venues (total: 20)
+INFO:     172.20.10.1:57681 - "GET /venues?user_id=user_2&sort_by=popularity HTTP/1.1" 200 OK
+INFO:     172.20.10.1:57680 - "GET /users/user_2 HTTP/1.1" 200 OK
+2025-12-03 15:33:40,388 - main - INFO - Fetching venue detail for venue_id: venue_20, user_id: None
+INFO:     172.20.10.1:57682 - "GET /venues/venue_20 HTTP/1.1" 200 OK
+2025-12-03 15:33:41,613 - main - INFO - Fetching venues with filters: user_id=user_2, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=popularity
+2025-12-03 15:33:41,624 - main - INFO - Returning 20 venues (total: 20)
+INFO:     172.20.10.1:57681 - "GET /venues?user_id=user_2&sort_by=popularity HTTP/1.1" 200 OK
+2025-12-03 15:33:46,075 - main - INFO - Fetching venue detail for venue_id: venue_1, user_id: None
+INFO:     172.20.10.1:57683 - "GET /venues/venue_1 HTTP/1.1" 200 OK
+2025-12-03 15:33:47,238 - main - INFO - Fetching venues with filters: user_id=user_2, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=popularity
+2025-12-03 15:33:47,249 - main - INFO - Returning 20 venues (total: 20)
+INFO:     172.20.10.1:57684 - "GET /venues?user_id=user_2&sort_by=popularity HTTP/1.1" 200 OK
+2025-12-03 15:33:49,084 - main - INFO - Fetching venue detail for venue_id: venue_1, user_id: None
+INFO:     172.20.10.1:57685 - "GET /venues/venue_1 HTTP/1.1" 200 OK
+2025-12-03 15:33:50,101 - main - INFO - Fetching venues with filters: user_id=user_2, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=popularity
+2025-12-03 15:33:50,113 - main - INFO - Returning 20 venues (total: 20)
+INFO:     172.20.10.1:57684 - "GET /venues?user_id=user_2&sort_by=popularity HTTP/1.1" 200 OK
+2025-12-03 15:33:51,825 - main - INFO - Fetching venue detail for venue_id: venue_1, user_id: None
+INFO:     172.20.10.1:57686 - "GET /venues/venue_1 HTTP/1.1" 200 OK
+2025-12-03 15:33:52,763 - main - INFO - Fetching venues with filters: user_id=user_2, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=popularity
+2025-12-03 15:33:52,775 - main - INFO - Returning 20 venues (total: 20)
+INFO:     172.20.10.1:57684 - "GET /venues?user_id=user_2&sort_by=popularity HTTP/1.1" 200 OK
+2025-12-03 15:33:54,325 - main - INFO - Fetching recommendations for user_id: user_2
+2025-12-03 15:33:54,387 - main - INFO - Returning 20 recommendations (5 already interested)
+INFO:     172.20.10.1:57687 - "GET /recommendations?user_id=user_2 HTTP/1.1" 200 OK
+2025-12-03 15:35:24,041 - main - INFO - Fetching user profile for user_id: user_2
+INFO:     172.20.10.1:57688 - "GET /users/user_2 HTTP/1.1" 200 OK
+2025-12-03 15:35:27,439 - main - INFO - Fetching recommendations for user_id: user_2
+2025-12-03 15:35:27,497 - main - INFO - Returning 20 recommendations (5 already interested)
+INFO:     172.20.10.1:57689 - "GET /recommendations?user_id=user_2 HTTP/1.1" 200 OK
+2025-12-03 15:35:30,253 - main - INFO - Fetching user profile for user_id: user_2
+INFO:     172.20.10.1:57690 - "GET /users/user_2 HTTP/1.1" 200 OK
+2025-12-03 15:35:31,244 - main - INFO - Fetching recommendations for user_id: user_2
+2025-12-03 15:35:31,274 - main - INFO - Returning 20 recommendations (5 already interested)
+INFO:     172.20.10.1:57691 - "GET /recommendations?user_id=user_2 HTTP/1.1" 200 OK
+2025-12-03 15:35:35,628 - main - INFO - Fetching user profile for user_id: user_2
+INFO:     172.20.10.1:57692 - "GET /users/user_2 HTTP/1.1" 200 OK
+2025-12-03 15:35:41,106 - main - INFO - Fetching recommendations for user_id: user_2
+2025-12-03 15:35:41,162 - main - INFO - Returning 20 recommendations (5 already interested)
+INFO:     172.20.10.1:57693 - "GET /recommendations?user_id=user_2 HTTP/1.1" 200 OK
+2025-12-03 15:35:43,731 - main - INFO - Fetching user profile for user_id: user_2
+INFO:     172.20.10.1:57694 - "GET /users/user_2 HTTP/1.1" 200 OK
+2025-12-03 15:35:45,591 - main - INFO - Fetching recommendations for user_id: user_2
+2025-12-03 15:35:45,647 - main - INFO - Returning 20 recommendations (5 already interested)
+INFO:     172.20.10.1:57695 - "GET /recommendations?user_id=user_2 HTTP/1.1" 200 OK
+2025-12-03 15:36:49,354 - main - INFO - Fetching user profile for user_id: user_2
+2025-12-03 15:36:49,368 - main - INFO - Fetching venues with filters: user_id=user_2, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=popularity
+2025-12-03 15:36:49,384 - main - INFO - Returning 20 venues (total: 20)
+INFO:     172.20.10.1:57697 - "GET /venues?user_id=user_2&sort_by=popularity HTTP/1.1" 200 OK
+INFO:     172.20.10.1:57696 - "GET /users/user_2 HTTP/1.1" 200 OK
+2025-12-03 15:36:51,966 - main - INFO - Fetching recommendations for user_id: user_2
+2025-12-03 15:36:52,024 - main - INFO - Returning 20 recommendations (5 already interested)
+INFO:     172.20.10.1:57698 - "GET /recommendations?user_id=user_2 HTTP/1.1" 200 OK
+2025-12-03 15:37:00,879 - main - INFO - Fetching user profile for user_id: user_2
+INFO:     172.20.10.1:57699 - "GET /users/user_2 HTTP/1.1" 200 OK
+2025-12-03 15:37:02,790 - main - INFO - Fetching recommendations for user_id: user_2
+2025-12-03 15:37:02,846 - main - INFO - Returning 20 recommendations (5 already interested)
+INFO:     172.20.10.1:57700 - "GET /recommendations?user_id=user_2 HTTP/1.1" 200 OK
+2025-12-03 15:37:06,085 - main - INFO - Fetching user profile for user_id: user_2
+INFO:     172.20.10.1:57701 - "GET /users/user_2 HTTP/1.1" 200 OK
+2025-12-03 15:37:09,272 - main - INFO - Fetching venues with filters: user_id=user_2, categories=None, max_distance=None, min_friend_interest=None, only_interested=None, exclude_interested=None, sort_by=popularity
+2025-12-03 15:37:09,283 - main - INFO - Returning 20 venues (total: 20)
+INFO:     172.20.10.1:57702 - "GET /venues?user_id=user_2&sort_by=popularity HTTP/1.1" 200 OK
