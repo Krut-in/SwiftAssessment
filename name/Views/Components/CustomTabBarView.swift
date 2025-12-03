@@ -61,7 +61,7 @@ struct CustomTabBarView: View {
         .padding(.horizontal, 20)
         .background(
             ZStack {
-                // Liquid glass layers
+                // Liquid glass layers - dark mode adaptive
                 RoundedRectangle(cornerRadius: 35)
                     .fill(
                         LinearGradient(
@@ -78,7 +78,7 @@ struct CustomTabBarView: View {
                             .fill(.ultraThinMaterial)
                     )
                 
-                // Vibrant border
+                // Vibrant border - dark mode adaptive
                 RoundedRectangle(cornerRadius: 35)
                     .strokeBorder(
                         LinearGradient(
@@ -112,6 +112,31 @@ struct CustomTabBarView: View {
         )
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+        .gesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    handleSwipe(value: value)
+                }
+        )
+    }
+    
+    // MARK: - Swipe Handler
+    
+    private func handleSwipe(value: DragGesture.Value) {
+        let horizontalSwipe = value.translation.width
+        
+        // Swipe left = next tab
+        if horizontalSwipe < -30 && selectedTab < tabs.count - 1 {
+            withAnimation(Theme.Animation.tabSelection) {
+                selectedTab += 1
+            }
+        }
+        // Swipe right = previous tab
+        else if horizontalSwipe > 30 && selectedTab > 0 {
+            withAnimation(Theme.Animation.tabSelection) {
+                selectedTab -= 1
+            }
+        }
     }
     
     // MARK: - Tab Button
@@ -159,33 +184,52 @@ struct CustomTabBarView: View {
                         x: 0,
                         y: 1
                     )
-                
-                // Active indicator bar at bottom
-                if selectedTab == index {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.9),
-                                    Color.white.opacity(0.6)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: 32, height: 3)
-                        .shadow(color: Color.white.opacity(0.5), radius: 4, x: 0, y: 0)
-                        .matchedGeometryEffect(id: "TAB_INDICATOR", in: animation)
-                        .transition(.scale.combined(with: .opacity))
-                } else {
-                    // Placeholder for spacing consistency
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.clear)
-                        .frame(width: 32, height: 3)
-                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
+            .background(
+                Group {
+                    if selectedTab == index {
+                        // Glassmorphic bubble indicator with padding
+                        ZStack {
+                            // Base glass layer
+                            RoundedRectangle(cornerRadius: 35)
+                                .fill(.ultraThinMaterial)
+                            
+                            // White gradient overlay for glass effect
+                            RoundedRectangle(cornerRadius: 35)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.2),
+                                            Color.white.opacity(0.05)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                            
+                            // Subtle border for definition
+                            RoundedRectangle(cornerRadius: 35)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.3),
+                                            Color.white.opacity(0.1)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        }
+                        .padding(.vertical, 4)
+                        .matchedGeometryEffect(id: "TAB_INDICATOR", in: animation)
+                        .shadow(color: Color.white.opacity(0.2), radius: 8, x: 0, y: 2)
+                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                    }
+                }
+            )
         }
         .buttonStyle(PlainButtonStyle())
     }
