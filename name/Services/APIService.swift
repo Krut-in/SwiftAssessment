@@ -66,6 +66,8 @@ enum APIError: LocalizedError {
                 return "Request timed out. Please try again."
             } else if nsError.code == NSURLErrorCannotConnectToHost {
                 return "Unable to connect to server. Please try again."
+            } else if nsError.code == NSURLErrorNetworkConnectionLost {
+                return "Network connection was lost. Please check your connection and try again."
             }
             return "Network error: \(error.localizedDescription)"
         case .decodingError(let error):
@@ -99,6 +101,8 @@ protocol APIServiceProtocol {
     func fetchVenueBooking(venueId: String) async throws -> VenueBookingResponse
     func completeActionItem(itemId: String, userId: String) async throws -> SuccessResponse
     func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse
+    func fetchActivities(userId: String, page: Int, limit: Int) async throws -> ActivitiesResponse
+    func fetchSocialFeed(userId: String, page: Int, limit: Int, since: Date?) async throws -> SocialFeedResponse
 }
 
 // MARK: - API Service Implementation
@@ -114,16 +118,22 @@ class APIService: ObservableObject, APIServiceProtocol {
     
     // MARK: - Initialization
     
-    nonisolated init(baseURL: String = "http://localhost:8000", session: URLSession = .shared) {
+    nonisolated init(baseURL: String = "http://192.168.1.183:8000", session: URLSession = .shared) {
         self.baseURL = baseURL
         
-        // Configure session with timeout for production
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30.0
-        configuration.timeoutIntervalForResource = 60.0
-        configuration.waitsForConnectivity = true
-        
-        self.session = URLSession(configuration: configuration)
+        // Use custom session with production configuration if using shared session
+        // Otherwise use injected session (e.g., for testing)
+        if session === URLSession.shared {
+            let configuration = URLSessionConfiguration.default
+            configuration.timeoutIntervalForRequest = 30.0
+            configuration.timeoutIntervalForResource = 60.0
+            configuration.waitsForConnectivity = true
+            
+            self.session = URLSession(configuration: configuration)
+        } else {
+            // Use injected session (for testing or custom configs)
+            self.session = session
+        }
         
         // Configure JSON decoder for date handling
         self.decoder = JSONDecoder()
@@ -215,19 +225,104 @@ class APIService: ObservableObject, APIServiceProtocol {
         return try await performRequest(endpoint: "/venues/\(venueId)/booking", method: "GET")
     }
     
-    /// Completes an action item
+    /// Completes an action item with retry logic
     func completeActionItem(itemId: String, userId: String) async throws -> SuccessResponse {
         let requestBody = CompleteActionItemRequest(user_id: userId)
-        return try await performRequest(endpoint: "/action-items/\(itemId)/complete", method: "POST", body: requestBody)
+        return try await performRequestWithRetry(endpoint: "/action-items/\(itemId)/complete", method: "POST", body: requestBody)
     }
     
-    /// Dismisses an action item
+    /// Dismisses an action item with retry logic
     func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse {
         let queryItems = [URLQueryItem(name: "user_id", value: userId)]
-        return try await performRequest(endpoint: "/action-items/\(itemId)", method: "DELETE", queryItems: queryItems)
+        return try await performRequestWithRetry(endpoint: "/action-items/\(itemId)", method: "DELETE", queryItems: queryItems)
+    }
+    
+    /// Fetches social feed activities for a user
+    /// - Parameters:
+    ///   - userId: User identifier to fetch friend activities
+    ///   - page: Page number for pagination
+    ///   - limit: Number of activities per page
+    /// - Returns: ActivitiesResponse with paginated activities
+    func fetchActivities(userId: String, page: Int = 1, limit: Int = 20) async throws -> ActivitiesResponse {
+        let queryItems = [
+            URLQueryItem(name: "user_id", value: userId),
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "limit", value: String(limit))
+        ]
+        return try await performRequest(endpoint: "/activities", method: "GET", queryItems: queryItems)
+    }
+    
+    /// Fetches comprehensive social feed with friend activities and highlighted venues
+    /// - Parameters:
+    ///   - userId: User identifier to fetch friend activities
+    ///   - page: Page number for pagination
+    ///   - limit: Number of activities per page (max 100)
+    ///   - since: Optional timestamp for incremental updates (real-time polling)
+    /// - Returns: SocialFeedResponse with interest activities and highlighted venues
+    func fetchSocialFeed(userId: String, page: Int = 1, limit: Int = 20, since: Date? = nil) async throws -> SocialFeedResponse {
+        var queryItems = [
+            URLQueryItem(name: "user_id", value: userId),
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "limit", value: String(limit))
+        ]
+        
+        // Add since parameter if provided for incremental updates
+        if let since = since {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            queryItems.append(URLQueryItem(name: "since", value: formatter.string(from: since)))
+        }
+        
+        return try await performRequest(endpoint: "/social/feed", method: "GET", queryItems: queryItems)
     }
     
     // MARK: - Private Helper Methods
+    
+    /// Performs a network request with automatic retry on network errors
+    /// Uses exponential backoff: 0.5s, 1.0s, 2.0s delays for 3 total attempts
+    private func performRequestWithRetry<T: Decodable>(
+        endpoint: String,
+        method: String,
+        queryItems: [URLQueryItem]? = nil,
+        body: Encodable? = nil,
+        maxRetries: Int = 3
+    ) async throws -> T {
+        var lastError: APIError?
+        let retryDelays: [Double] = [0.5, 1.0, 2.0] // Exponential backoff delays in seconds
+        
+        for attempt in 0..<maxRetries {
+            do {
+                return try await performRequest(
+                    endpoint: endpoint,
+                    method: method,
+                    queryItems: queryItems,
+                    body: body
+                )
+            } catch let error as APIError {
+                lastError = error
+                
+                // Only retry on network errors, not server errors (4xx, 5xx)
+                switch error {
+                case .networkError:
+                    // Network error - retry if attempts remain
+                    if attempt < maxRetries - 1 {
+                        let delay = retryDelays[attempt]
+                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                case .serverError, .decodingError, .invalidURL, .noData, .unknown:
+                    // Don't retry on server errors or other non-network issues
+                    throw error
+                }
+            } catch {
+                // Unknown error type - don't retry
+                throw APIError.unknown
+            }
+        }
+        
+        // All retries exhausted
+        throw lastError ?? APIError.unknown
+    }
     
     /// Performs a network request with the given parameters
     private func performRequest<T: Decodable>(

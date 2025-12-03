@@ -31,10 +31,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Database imports
 from database import init_db, close_db, get_db
-from models.db_models import UserDB, VenueDB, InterestDB, UserInterestDB, FriendshipDB, ActionItemDB
+from models.db_models import UserDB, VenueDB, InterestDB, UserInterestDB, FriendshipDB, ActionItemDB, ActivityDB
 from models.api_models import ActionItem
 from seed_data import check_and_seed
 from agent import action_item_agent
@@ -152,11 +153,16 @@ async def get_interested_count(session, venue_id: str) -> int:
     Returns:
         Count of users interested in this venue
     """
-    result = await session.execute(
-        select(func.count(InterestDB.user_id))
-        .where(InterestDB.venue_id == venue_id)
-    )
-    return result.scalar() or 0
+    try:
+        result = await session.execute(
+            select(func.count(InterestDB.user_id))
+            .where(InterestDB.venue_id == venue_id)
+        )
+        return result.scalar() or 0
+    except Exception as e:
+        logger.error(f"Failed to get interested count for venue {venue_id}: {e}")
+        return 0  # Fail gracefully with 0 count
+
 
 
 async def get_interested_users(session, venue_id: str) -> List[Dict]:
@@ -170,21 +176,25 @@ async def get_interested_users(session, venue_id: str) -> List[Dict]:
     Returns:
         List of simplified user objects (id, name, avatar only)
     """
-    result = await session.execute(
-        select(UserDB)
-        .join(InterestDB, InterestDB.user_id == UserDB.id)
-        .where(InterestDB.venue_id == venue_id)
-    )
-    users = result.scalars().all()
-    
-    return [
-        {
-            "id": user.id,
-            "name": user.name,
-            "avatar": user.avatar
-        }
-        for user in users
-    ]
+    try:
+        result = await session.execute(
+            select(UserDB)
+            .join(InterestDB, InterestDB.user_id == UserDB.id)
+            .where(InterestDB.venue_id == venue_id)
+        )
+        users = result.scalars().all()
+        
+        return [
+            {
+                "id": user.id,
+                "name": user.name,
+                "avatar": user.avatar
+            }
+            for user in users
+        ]
+    except Exception as e:
+        logger.error(f"Failed to get interested users for venue {venue_id}: {e}")
+        return []  # Fail gracefully with empty list
 
 
 async def get_user_interested_venues(session, user_id: str) -> List[Dict]:
@@ -198,27 +208,45 @@ async def get_user_interested_venues(session, user_id: str) -> List[Dict]:
     Returns:
         List of full venue objects with interested counts
     """
-    result = await session.execute(
-        select(VenueDB)
-        .join(InterestDB, InterestDB.venue_id == VenueDB.id)
-        .where(InterestDB.user_id == user_id)
-    )
-    venues = result.scalars().all()
-    
-    venues_list = []
-    for venue in venues:
-        interested_count = await get_interested_count(session, venue.id)
-        venues_list.append({
-            "id": venue.id,
-            "name": venue.name,
-            "category": venue.category,
-            "description": venue.description,
-            "image": venue.image,
-            "address": venue.address,
-            "interested_count": interested_count
-        })
-    
-    return venues_list
+    try:
+        result = await session.execute(
+            select(VenueDB)
+            .join(InterestDB, InterestDB.venue_id == VenueDB.id)
+            .where(InterestDB.user_id == user_id)
+        )
+        venues = result.scalars().all()
+        
+        venues_list = []
+        for venue in venues:
+            interested_count = await get_interested_count(session, venue.id)
+            
+            # Get user to calculate distance
+            user = await session.get(UserDB, user_id)
+            distance_km = None
+            if user:
+                distance_km = haversine_distance(
+                    user.latitude, user.longitude,
+                    venue.latitude, venue.longitude
+                )
+            
+            venues_list.append({
+                "id": venue.id,
+                "name": venue.name,
+                "category": venue.category,
+                "description": venue.description,
+                "image": venue.image,
+                "images": venue.images,  # Array for multi-image galleries
+                "address": venue.address,
+                "latitude": venue.latitude,  # For "Get Directions" feature
+                "longitude": venue.longitude,  # For "Get Directions" feature
+                "interested_count": interested_count,
+                "distance_km": distance_km
+            })
+        
+        return venues_list
+    except Exception as e:
+        logger.error(f"Failed to get interested venues for user {user_id}: {e}")
+        return []  # Fail gracefully with empty list
 
 
 async def count_friends_interested(session, user_id: str, venue_id: str) -> int:
@@ -235,68 +263,206 @@ async def count_friends_interested(session, user_id: str, venue_id: str) -> int:
     Returns:
         Count of friends interested in this venue
     """
-    # Get all friend IDs (bidirectional)
-    result = await session.execute(
-        select(FriendshipDB)
-        .where(
-            or_(
-                FriendshipDB.user_id == user_id,
-                FriendshipDB.friend_id == user_id
+    try:
+        # Get all friend IDs (bidirectional)
+        result = await session.execute(
+            select(FriendshipDB)
+            .where(
+                or_(
+                    FriendshipDB.user_id == user_id,
+                    FriendshipDB.friend_id == user_id
+                )
             )
         )
-    )
-    friendships = result.scalars().all()
-    
-    friend_ids = set()
-    for friendship in friendships:
-        if friendship.user_id == user_id:
-            friend_ids.add(friendship.friend_id)
-        else:
-            friend_ids.add(friendship.user_id)
-    
-    # Count how many friends are interested in this venue
-    if not friend_ids:
-        return 0
-    
-    result = await session.execute(
-        select(func.count(InterestDB.user_id))
-        .where(
-            and_(
-                InterestDB.venue_id == venue_id,
-                InterestDB.user_id.in_(friend_ids)
+        friendships = result.scalars().all()
+        
+        friend_ids = set()
+        for friendship in friendships:
+            if friendship.user_id == user_id:
+                friend_ids.add(friendship.friend_id)
+            else:
+                friend_ids.add(friendship.user_id)
+        
+        # Count how many friends are interested in this venue
+        if not friend_ids:
+            return 0
+        
+        result = await session.execute(
+            select(func.count(InterestDB.user_id))
+            .where(
+                and_(
+                    InterestDB.venue_id == venue_id,
+                    InterestDB.user_id.in_(friend_ids)
+                )
             )
         )
-    )
-    return result.scalar() or 0
+        return result.scalar() or 0
+    except Exception as e:
+        logger.error(f"Failed to count friends interested for user {user_id}, venue {venue_id}: {e}")
+        return 0  # Fail gracefully with 0 count
 
 
-async def calculate_recommendation_score(session, user_id: str, venue_id: str) -> tuple[float, str, int, int, Optional[float]]:
+async def batch_get_interested_counts(session, venue_ids: List[str]) -> Dict[str, int]:
     """
-    Calculate recommendation score for a venue based on four factors.
+    Batch load interested counts for multiple venues in a single query.
     
-    CRITICAL: Score is calculated based on OTHER users' interests only.
-    This ensures the score remains stable when the current user toggles their interest.
+    Optimizes N+1 query problem by loading all counts at once.
     
-    Scoring algorithm (out of 10 points total):
-    - Factor 1: Popularity (30% weight) - min(other_users_interested / 3, 1.0) * 3
-    - Factor 2: Category match (25% weight) - 1.0 if match, else 0.0, * 2.5
-    - Factor 3: Friend interest (25% weight) - min(friends_interested / 3, 1.0) * 2.5
-    - Factor 4: Proximity (20% weight) - distance-based score (1.0 to 0.2) * 2
+    Args:
+        session: Database session
+        venue_ids: List of venue IDs to get counts for
+        
+    Returns:
+        Dictionary mapping venue_id to interested count
+    """
+    try:
+        if not venue_ids:
+            return {}
+        
+        result = await session.execute(
+            select(
+                InterestDB.venue_id,
+                func.count(InterestDB.user_id).label('count')
+            )
+            .where(InterestDB.venue_id.in_(venue_ids))
+            .group_by(InterestDB.venue_id)
+        )
+        
+        # Convert to dictionary
+        counts = {venue_id: count for venue_id, count in result.all()}
+        
+        # Ensure all requested venue_ids are in result (with 0 if no interests)
+        return {venue_id: counts.get(venue_id, 0) for venue_id in venue_ids}
+    except Exception as e:
+        logger.error(f"Failed to batch get interested counts: {e}")
+        # Return 0 for all venues on error
+        return {venue_id: 0 for venue_id in venue_ids}
+
+
+async def batch_count_friends_interested(session, user_id: str, venue_ids: List[str]) -> Dict[str, int]:
+    """
+    Batch load friend-interested counts for multiple venues in a single set of queries.
+    
+    Optimizes N+1 query problem for friend interest calculations.
+    
+    Args:
+        session: Database session
+        user_id: The ID of the current user
+        venue_ids: List of venue IDs to check
+        
+    Returns:
+        Dictionary mapping venue_id to friends interested count
+    """
+    try:
+        if not venue_ids:
+            return {}
+        
+        # Get all friend IDs (bidirectional) - single query
+        result = await session.execute(
+            select(FriendshipDB)
+            .where(
+                or_(
+                    FriendshipDB.user_id == user_id,
+                    FriendshipDB.friend_id == user_id
+                )
+            )
+        )
+        friendships = result.scalars().all()
+        
+        friend_ids = set()
+        for friendship in friendships:
+            if friendship.user_id == user_id:
+                friend_ids.add(friendship.friend_id)
+            else:
+                friend_ids.add(friendship.user_id)
+        
+        if not friend_ids:
+            return {venue_id: 0 for venue_id in venue_ids}
+        
+        # Count friends interested for all venues - single query
+        result = await session.execute(
+            select(
+                InterestDB.venue_id,
+                func.count(InterestDB.user_id).label('count')
+            )
+            .where(
+                and_(
+                    InterestDB.venue_id.in_(venue_ids),
+                    InterestDB.user_id.in_(friend_ids)
+                )
+            )
+            .group_by(InterestDB.venue_id)
+        )
+        
+        counts = {venue_id: count for venue_id, count in result.all()}
+        
+        # Ensure all requested venue_ids are in result
+        return {venue_id: counts.get(venue_id, 0) for venue_id in venue_ids}
+    except Exception as e:
+        logger.error(f"Failed to batch count friends interested: {e}")
+        return {venue_id: 0 for venue_id in venue_ids}
+
+
+async def batch_check_user_interests(session, user_id: str, venue_ids: List[str]) -> Dict[str, bool]:
+    """
+    Batch check if user is interested in multiple venues.
+    
+    Optimizes N+1 query problem for user interest checks.
     
     Args:
         session: Database session
         user_id: The ID of the user
-        venue_id: The ID of the venue
+        venue_ids: List of venue IDs to check
         
     Returns:
-        Tuple of (score, reason string, friends_interested_count, total_interested_count, distance_km)
+        Dictionary mapping venue_id to boolean (True if interested)
+    """
+    try:
+        if not venue_ids:
+            return {}
+        
+        result = await session.execute(
+            select(InterestDB.venue_id)
+            .where(
+                and_(
+                    InterestDB.user_id == user_id,
+                    InterestDB.venue_id.in_(venue_ids)
+                )
+            )
+        )
+        
+        interested_venue_ids = {row[0] for row in result.all()}
+        
+        return {venue_id: venue_id in interested_venue_ids for venue_id in venue_ids}
+    except Exception as e:
+        logger.error(f"Failed to batch check user interests: {e}")
+        return {venue_id: False for venue_id in venue_ids}
+
+
+
+
+async def calculate_recommendation_score(session, user_id: str, venue_id: str):
+    """
+    Calculate recommendation score for a venue based on user preferences.
+    
+    CRITICAL: Score is based on OTHER users' interests, excluding the current user.
+    This ensures scores don't change when user toggles their own interest.
+    
+    Scoring factors (out of 10 points):
+    - Popularity (30% = 3.0 points) based on OTHER users interested
+    - Category match (25% = 2.5 points) based on user interests
+    - Friend interest (25% = 2.5 points) based on friends interested
+    - Proximity (20% = 2.0 points) based on distance from user
+    
+    Returns:
+        Tuple of (score, reason, friends_interested, total_interested, distance_km, score_breakdown)
     """
     # Get user and venue
     user = await session.get(UserDB, user_id)
     venue = await session.get(VenueDB, venue_id)
     
     if not user or not venue:
-        return 0.0, "Invalid user or venue", 0, 0, None
+        return 0.0, "Invalid user or venue", 0, 0, None, {}
     
     score = 0.0
     reasons = []
@@ -364,7 +530,16 @@ async def calculate_recommendation_score(session, user_id: str, venue_id: str) -
     # Generate reason string
     reason = ", ".join(reasons) if reasons else "New venue to explore"
     
-    return score, reason, friends_interested, total_interested_count, distance_km
+    # Calculate score breakdown percentages (out of 100)
+    # Convert scores to percentages based on maximum possible score (10)
+    score_breakdown = {
+        "popularity": round((popularity_score / 3.0) * 30, 1),  # Max 30%
+        "category_match": round((category_score / 2.5) * 25, 1),  # Max 25%
+        "friend_signal": round((friend_score / 2.5) * 25, 1),  # Max 25%
+        "proximity": round((proximity_score / 2.0) * 20, 1)  # Max 20%
+    }
+    
+    return score, reason, friends_interested, total_interested_count, distance_km, score_breakdown
 
 
 # API Endpoints
@@ -434,39 +609,40 @@ async def get_venues(
         result = await session.execute(query)
         venues_db = result.scalars().all()
         
-        # Build venue list with all data
+        # PERFORMANCE OPTIMIZATION: Batch load all data to avoid N+1 queries
+        # Old approach: 3 queries per venue (interested_count, friends_interested, user_interested)
+        # New approach: 3 queries total regardless of venue count
+        
+        venue_ids = [venue.id for venue in venues_db]
+        
+        # Batch load interested counts for all venues (1 query)
+        interested_counts = await batch_get_interested_counts(session, venue_ids)
+        
+        # Batch load friend-interested counts if user provided (2 queries max)
+        friends_interested_counts = {}
+        user_interests = {}
+        if user and user_id:
+            friends_interested_counts = await batch_count_friends_interested(session, user_id, venue_ids)
+            user_interests = await batch_check_user_interests(session, user_id, venue_ids)
+        
+        # Build venue list with all data (no queries in loop!)
         venues = []
         for venue in venues_db:
-            interested_count = await get_interested_count(session, venue.id)
             venue_data = {
                 "id": venue.id,
                 "name": venue.name,
                 "category": venue.category,
                 "image": venue.image,
-                "interested_count": interested_count,
+                "interested_count": interested_counts.get(venue.id, 0),
                 "created_at": venue.created_at.isoformat() if venue.created_at else None
             }
             
-            # Calculate distance if user provided
+            # Calculate distance if user provided (pure calculation, no query)
             if user:
                 distance_km = haversine_distance(user.latitude, user.longitude, venue.latitude, venue.longitude)
                 venue_data["distance_km"] = distance_km
-                
-                # Calculate friends interested
-                friends_interested = await count_friends_interested(session, user_id, venue.id)
-                venue_data["friends_interested"] = friends_interested
-                
-                # Check if user is interested
-                interest_result = await session.execute(
-                    select(InterestDB).where(
-                        and_(
-                            InterestDB.user_id == user_id,
-                            InterestDB.venue_id == venue.id
-                        )
-                    )
-                )
-                user_interested = interest_result.scalar() is not None
-                venue_data["user_interested"] = user_interested
+                venue_data["friends_interested"] = friends_interested_counts.get(venue.id, 0)
+                venue_data["user_interested"] = user_interests.get(venue.id, False)
             
             venues.append(venue_data)
         
@@ -524,20 +700,21 @@ async def get_venues(
 
 
 @app.get("/venues/{venue_id}")
-async def get_venue_detail(venue_id: str):
+async def get_venue_detail(venue_id: str, user_id: Optional[str] = None):
     """
     Get detailed information about a specific venue.
     
     Args:
         venue_id: The ID of the venue to retrieve
+        user_id: Optional user ID to calculate distance from user location
         
     Returns:
-        JSON object with venue details and list of interested users
+        JSON object with complete venue details and list of interested users
         
     Raises:
         HTTPException: 404 if venue not found
     """
-    logger.info(f"Fetching venue detail for venue_id: {venue_id}")
+    logger.info(f"Fetching venue detail for venue_id: {venue_id}, user_id: {user_id}")
     
     async with get_db() as session:
         venue = await session.get(VenueDB, venue_id)
@@ -548,15 +725,31 @@ async def get_venue_detail(venue_id: str):
         
         interested_users = await get_interested_users(session, venue_id)
         
+        # Build venue response with complete data
+        venue_data = {
+            "id": venue.id,
+            "name": venue.name,
+            "category": venue.category,
+            "description": venue.description,
+            "image": venue.image,
+            "images": venue.images,  # Array of image URLs for galleries
+            "address": venue.address,
+            "latitude": venue.latitude,
+            "longitude": venue.longitude
+        }
+        
+        # Calculate distance if user_id provided
+        if user_id:
+            user = await session.get(UserDB, user_id)
+            if user:
+                distance_km = haversine_distance(
+                    user.latitude, user.longitude,
+                    venue.latitude, venue.longitude
+                )
+                venue_data["distance_km"] = distance_km
+        
         return {
-            "venue": {
-                "id": venue.id,
-                "name": venue.name,
-                "category": venue.category,
-                "description": venue.description,
-                "image": venue.image,
-                "address": venue.address
-            },
+            "venue": venue_data,
             "interested_users": interested_users
         }
 
@@ -566,10 +759,13 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
     """
     Express or toggle interest in a venue.
     
-    If the user is already interested, removes the interest.
-    If not interested, adds the interest.
+    If the user is already interested, removes the interest and associated activity.
+    If not interested, adds the interest and creates an activity for friends' social feeds.
     
-    Handles action item creation when threshold is met (4+ users).
+    Activities are committed separately from action items to ensure they always persist.
+    This maintains consistency across Profile, Discover, Recommended, and Social tabs.
+    
+    Handles action item creation when threshold is met (5+ users).
     
     Args:
         request: InterestRequest containing user_id and venue_id
@@ -609,18 +805,45 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
         existing_interest = result.scalar_one_or_none()
         
         if existing_interest:
-            # Remove interest (toggle off)
+            # ============================================================
+            # REMOVE INTEREST (toggle off)
+            # ============================================================
+            
+            # Delete the interest record
             await session.delete(existing_interest)
+            
+            # Delete associated activity for consistency across all tabs
+            # This ensures Social tab, Profile tab, etc. stay in sync
+            result = await session.execute(
+                select(ActivityDB)
+                .where(
+                    and_(
+                        ActivityDB.user_id == request.user_id,
+                        ActivityDB.venue_id == request.venue_id,
+                        ActivityDB.action == "interested"
+                    )
+                )
+            )
+            activities = result.scalars().all()
+            
+            for activity in activities:
+                await session.delete(activity)
+            
+            # Commit the deletions
             await session.commit()
             
-            logger.info(f"Interest removed: user={request.user_id}, venue={request.venue_id}")
+            logger.info(f"Interest and {len(activities)} activity record(s) removed: user={request.user_id}, venue={request.venue_id}")
             
             return InterestResponse(
                 success=True,
                 message=f"Interest removed for {venue.name}"
             )
         else:
-            # Add interest (toggle on)
+            # ============================================================
+            # ADD INTEREST (toggle on)
+            # ============================================================
+            
+            # Create interest record
             new_interest = InterestDB(
                 user_id=request.user_id,
                 venue_id=request.venue_id,
@@ -628,11 +851,27 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
             )
             session.add(new_interest)
             
-            # IMPORTANT: Flush to database but don't commit yet
-            # This makes the interest visible to subsequent queries in this transaction
-            await session.flush()
+            # Create activity for social feed
+            # Friends will see this in their Social tab
+            activity_id = f"activity_{request.user_id}_{request.venue_id}_{int(datetime.now().timestamp())}"
+            new_activity = ActivityDB(
+                id=activity_id,
+                user_id=request.user_id,
+                venue_id=request.venue_id,
+                action="interested",
+                created_at=datetime.now()
+            )
+            session.add(new_activity)
             
-            logger.info(f"Interest added: user={request.user_id}, venue={request.venue_id}")
+            # CRITICAL: Commit interest + activity FIRST before action item logic
+            # This prevents rollbacks from orphaning activities
+            await session.commit()
+            
+            logger.info(f"Interest and activity created: user={request.user_id}, venue={request.venue_id}, activity_id={activity_id}")
+            
+            # ============================================================
+            # ACTION ITEM LOGIC (separate transaction)
+            # ============================================================
             
             # Get all interested user IDs for this venue (includes newly added interest)
             result = await session.execute(
@@ -654,8 +893,8 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
             )
             existing_action_item = result.scalar_one_or_none()
             
+            # Try to create action item if threshold met (5+ users)
             try:
-                # Try to create action item if threshold met
                 agent_response = action_item_agent(
                     request.venue_id,
                     interested_user_ids,
@@ -679,7 +918,6 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
                     )
                     session.add(action_item)
                     
-                    # Commit both the interest and action item together
                     try:
                         await session.commit()
                         logger.info(f"Action item created: {action_item.id} for venue={request.venue_id}, count={interested_count}")
@@ -696,35 +934,24 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
                             )
                         )
                     except Exception as commit_error:
-                        # Handle potential unique constraint violation on action_code
-                        logger.error(f"Failed to commit action item: {str(commit_error)}", exc_info=True)
+                        # Action item failed, but interest + activity are already saved!
+                        logger.error(f"Failed to commit action item (interest already saved): {str(commit_error)}", exc_info=True)
                         await session.rollback()
-                        
-                        # Re-add just the interest and commit it
-                        new_interest = InterestDB(
-                            user_id=request.user_id,
-                            venue_id=request.venue_id,
-                            created_at=datetime.now()
-                        )
-                        session.add(new_interest)
-                        await session.commit()
                         
                         return InterestResponse(
                             success=True,
                             message="Interest recorded successfully"
                         )
                 else:
-                    # No action item needed, just commit the interest
-                    await session.commit()
+                    # No action item needed
                     return InterestResponse(
                         success=True,
                         message="Interest recorded successfully"
                     )
             except Exception as e:
-                logger.error(f"Action item agent error: {str(e)}", exc_info=True)
-                # Rollback any pending action item changes
-                await session.rollback()
-                # Still return success since interest was recorded
+                # Action item logic failed, but interest + activity are already saved!
+                logger.error(f"Action item agent error (interest already saved): {str(e)}", exc_info=True)
+                
                 return InterestResponse(
                     success=True,
                     message="Interest recorded successfully"
@@ -860,7 +1087,7 @@ async def get_recommendations(user_id: str):
         # Calculate scores for ALL venues
         recommendations = []
         for venue in venues:
-            score, reason, friends_interested, total_interested, distance_km = await calculate_recommendation_score(
+            score, reason, friends_interested, total_interested, distance_km, score_breakdown = await calculate_recommendation_score(
                 session, user_id, venue.id
             )
             
@@ -874,7 +1101,10 @@ async def get_recommendations(user_id: str):
                     "category": venue.category,
                     "description": venue.description,
                     "image": venue.image,
+                    "images": venue.images,  # Array for multi-image galleries
                     "address": venue.address,
+                    "latitude": venue.latitude,  # For "Get Directions" feature
+                    "longitude": venue.longitude,  # For "Get Directions" feature
                     "interested_count": total_interested,
                     "distance_km": distance_km
                 },
@@ -882,7 +1112,8 @@ async def get_recommendations(user_id: str):
                 "reason": reason,
                 "already_interested": already_interested,
                 "friends_interested": friends_interested,
-                "total_interested": total_interested
+                "total_interested": total_interested,
+                "score_breakdown": score_breakdown
             })
         
         # Sort by score descending only
@@ -890,6 +1121,358 @@ async def get_recommendations(user_id: str):
         
         logger.info(f"Returning {len(recommendations)} recommendations ({len(user_interested_venue_ids)} already interested)")
         return {"recommendations": recommendations}
+
+
+@app.get("/activities")
+async def get_activities(
+    user_id: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20
+):
+    """
+    Get activity feed showing friend activities (interests, bookings, check-ins).
+    
+    Returns activities from the user's friends in chronological order.
+    
+    Args:
+        user_id: Optional user ID to filter friend activities
+        page: Page number for pagination (default: 1)
+        limit: Number of activities per page (default: 20, max: 100)
+        
+    Returns:
+        JSON object with activities array and pagination metadata
+    """
+    logger.info(f"Fetching activities for user_id={user_id}, page={page}, limit={limit}")
+    
+    # Validate pagination parameters
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 20
+    
+    async with get_db() as session:
+        # Get friend IDs if user_id provided
+        friend_ids = set()
+        if user_id:
+            # Get bidirectional friendships
+            result = await session.execute(
+                select(FriendshipDB)
+                .where(
+                    or_(
+                        FriendshipDB.user_id == user_id,
+                        FriendshipDB.friend_id == user_id
+                    )
+                )
+            )
+            friendships = result.scalars().all()
+            
+            for friendship in friendships:
+                if friendship.user_id == user_id:
+                    friend_ids.add(friendship.friend_id)
+                else:
+                    friend_ids.add(friendship.user_id)
+        
+        # Build query for activities
+        query = select(ActivityDB).options(
+            selectinload(ActivityDB.user),
+            selectinload(ActivityDB.venue)
+        )
+        
+        # Filter by friend IDs if provided
+        if user_id and friend_ids:
+            query = query.where(ActivityDB.user_id.in_(friend_ids))
+        elif user_id:
+            # User has no friends, return empty list
+            return {
+                "activities": [],
+                "page": page,
+                "limit": limit,
+                "total_count": 0
+            }
+        
+        # Order by most recent first
+        query = query.order_by(ActivityDB.created_at.desc())
+        
+        # Get total count
+        count_result = await session.execute(
+            select(func.count()).select_from(query.subquery())
+        )
+        total_count = count_result.scalar() or 0
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+        
+        # Execute query
+        result = await session.execute(query)
+        activities_db = result.scalars().all()
+        
+        # Build response
+        activities = []
+        for activity in activities_db:
+            activities.append({
+                "id": activity.id,
+                "user": {
+                    "id": activity.user.id,
+                    "name": activity.user.name,
+                    "avatar": activity.user.avatar
+                },
+                "venue": {
+                    "id": activity.venue.id,
+                    "name": activity.venue.name,
+                    "category": activity.venue.category,
+                    "image": activity.venue.image
+                },
+                "action": activity.action,
+                "timestamp": activity.created_at.isoformat()
+            })
+        
+        logger.info(f"Returning {len(activities)} activities (total: {total_count})")
+        
+        return {
+            "activities": activities,
+            "page": page,
+            "limit": limit,
+            "total_count": total_count
+        }
+
+
+@app.get("/social/feed")
+async def get_social_feed(
+    user_id: str,
+    page: int = 1,
+    limit: int = 20,
+    since: Optional[str] = None
+):
+    """
+    Get comprehensive social feed with friend interest activities and highlighted venues.
+    
+    Returns friend activities in InterestActivity format plus venues where 5+ friends are interested.
+    Supports incremental updates via 'since' timestamp for real-time polling.
+    
+    Args:
+        user_id: User ID to get social feed for (REQUIRED)
+        page: Page number for pagination (default: 1)
+        limit: Number of activities per page (default: 20, max: 100)
+        since: ISO timestamp for incremental updates (optional)
+        
+    Returns:
+        JSON object with:
+        - interest_activities: Friend interest actions with full metadata
+        - highlighted_venues: Venues with 5+ interested friends
+        - has_more: Pagination flag
+        - page, limit, total_count: Pagination metadata
+        - new_count: Number of activities since 'since' timestamp
+    """
+    logger.info(f"Fetching social feed for user_id={user_id}, page={page}, limit={limit}, since={since}")
+    
+    # Validate pagination parameters
+    if page < 1:
+        page = 1
+    if limit < 1 or limit > 100:
+        limit = 20
+    
+    # Parse since timestamp if provided
+    since_dt = None
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Invalid since timestamp: {since}")
+    
+    async with get_db() as session:
+        # Get friend IDs
+        result = await session.execute(
+            select(FriendshipDB)
+            .where(
+                or_(
+                    FriendshipDB.user_id == user_id,
+                    FriendshipDB.friend_id == user_id
+                )
+            )
+        )
+        friendships = result.scalars().all()
+        
+        friend_ids = set()
+        for friendship in friendships:
+            if friendship.user_id == user_id:
+                friend_ids.add(friendship.friend_id)
+            else:
+                friend_ids.add(friendship.user_id)
+        
+        if not friend_ids:
+            # User has no friends
+            return {
+                "interest_activities": [],
+                "highlighted_venues": [],
+                "has_more": False,
+                "page": page,
+                "limit": limit,
+                "total_count": 0,
+                "new_count": 0
+            }
+        
+        # Build query for friend activities (interested actions only)
+        query = select(ActivityDB).options(
+            selectinload(ActivityDB.user),
+            selectinload(ActivityDB.venue)
+        ).where(
+            and_(
+                ActivityDB.user_id.in_(friend_ids),
+                ActivityDB.action == "interested"
+            )
+        )
+        
+        # Filter by since timestamp if provided
+        if since_dt:
+            query = query.where(ActivityDB.created_at > since_dt)
+        
+        # Order by most recent first
+        query = query.order_by(ActivityDB.created_at.desc())
+        
+        # Get total count
+        count_result = await session.execute(
+            select(func.count()).select_from(query.subquery())
+        )
+        total_count = count_result.scalar() or 0
+        
+        # Count new activities since 'since' for real-time updates
+        new_count = 0
+        if since_dt:
+            new_count = total_count
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+        
+        # Execute query
+        result = await session.execute(query)
+        activities_db = result.scalars().all()
+        
+        # Build interest activities in InterestActivity format
+        interest_activities = []
+        for activity in activities_db:
+            interest_activities.append({
+                "id": activity.id,
+                "user": {
+                    "id": activity.user.id,
+                    "name": activity.user.name,
+                    "avatar": activity.user.avatar
+                },
+                "venue": {
+                    "id": activity.venue.id,
+                    "name": activity.venue.name,
+                    "category": activity.venue.category,
+                    "image": activity.venue.image
+                },
+                "action": activity.action,
+                "timestamp": activity.created_at.isoformat(),
+                "is_active": True
+            })
+        
+        # Calculate highlighted venues (5+ friends interested)
+        highlighted_venues = await calculate_highlighted_venues(session, user_id, friend_ids)
+        
+        has_more = (offset + len(activities_db)) < total_count
+        
+        logger.info(f"Returning {len(interest_activities)} activities, {len(highlighted_venues)} highlighted venues (new: {new_count})")
+        
+        return {
+            "interest_activities": interest_activities,
+            "highlighted_venues": highlighted_venues,
+            "has_more": has_more,
+            "page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "new_count": new_count
+        }
+
+
+async def calculate_highlighted_venues(
+    session: AsyncSession,
+    user_id: str,
+    friend_ids: set,
+    threshold: int = 5
+) -> list:
+    """
+    Calculate highlighted venues where 5+ friends are interested.
+    
+    Args:
+        session: Database session
+        user_id: Current user ID
+        friend_ids: Set of friend IDs
+        threshold: Minimum friend count (default: 5)
+        
+    Returns:
+        List of highlighted venue dictionaries
+    """
+    # Get all interests from friends
+    result = await session.execute(
+        select(InterestDB)
+        .options(selectinload(InterestDB.venue))
+        .where(InterestDB.user_id.in_(friend_ids))
+    )
+    friend_interests = result.scalars().all()
+    
+    # Group by venue
+    venue_friends = {}
+    for interest in friend_interests:
+        venue_id = interest.venue_id
+        if venue_id not in venue_friends:
+            venue_friends[venue_id] = {
+                "venue": interest.venue,
+                "friends": [],
+                "timestamps": []
+            }
+        
+        # Get user info
+        user_result = await session.execute(
+            select(UserDB).where(UserDB.id == interest.user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        
+        if user:
+            venue_friends[venue_id]["friends"].append({
+                "id": user.id,
+                "name": user.name,
+                "avatar_url": user.avatar,
+                "interested_timestamp": interest.created_at.isoformat()
+            })
+            venue_friends[venue_id]["timestamps"].append(interest.created_at)
+    
+    # Filter venues with threshold+ friends
+    highlighted_venues = []
+    for venue_id, data in venue_friends.items():
+        friend_count = len(data["friends"])
+        if friend_count >= threshold:
+            venue = data["venue"]
+            last_activity = max(data["timestamps"])
+            
+            # Also check total interested count (all users, not just friends)
+            total_result = await session.execute(
+                select(func.count())
+                .select_from(InterestDB)
+                .where(InterestDB.venue_id == venue_id)
+            )
+            total_interested = total_result.scalar() or 0
+            
+            highlighted_venues.append({
+                "id": f"highlight_{venue_id}",
+                "venue_id": venue_id,
+                "venue_name": venue.name,
+                "venue_image_url": venue.image,
+                "venue_category": venue.category,
+                "venue_address": venue.address,
+                "interested_friends": data["friends"][:10],  # Limit to 10 for display
+                "total_interested_count": total_interested,
+                "threshold": threshold,
+                "last_activity_timestamp": last_activity.isoformat()
+            })
+    
+    # Sort by last activity (most recent first)
+    highlighted_venues.sort(key=lambda x: x["last_activity_timestamp"], reverse=True)
+    
+    return highlighted_venues
 
 
 @app.post("/action-items/{item_id}/complete")

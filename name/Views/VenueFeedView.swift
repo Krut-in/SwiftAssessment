@@ -36,8 +36,14 @@ struct VenueFeedView: View {
     
     // MARK: - Properties
     
-    @StateObject private var viewModel = VenueFeedViewModel()
+    @StateObject private var viewModel = VenueFeedViewModel(appState: .shared)
     @ObservedObject private var appState = AppState.shared
+    @AppStorage("venueViewMode") private var viewMode: ViewMode = .list
+    @State private var selectedVenueId: String?
+    
+    enum ViewMode: String {
+        case list, map
+    }
     
     // MARK: - Computed Properties
     
@@ -73,6 +79,9 @@ struct VenueFeedView: View {
                 } else if viewModel.venues.isEmpty {
                     // Show empty state
                     emptyStateView
+                } else if viewMode == .map {
+                    // Show map view
+                    mapView
                 } else {
                     // Show venue list
                     venueListView
@@ -81,6 +90,19 @@ struct VenueFeedView: View {
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    // Map/List Toggle
+                    Button(action: {
+                        withAnimation(Theme.Animation.spring) {
+                            viewMode = viewMode == .list ? .map : .list
+                        }
+                    }) {
+                        Image(systemName: viewMode == .list ? "map" : "list.bullet")
+                            .font(.system(size: 20))
+                            .foregroundColor(Theme.Colors.primary)
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         viewModel.showFilterSheet = true
@@ -113,6 +135,9 @@ struct VenueFeedView: View {
                     }
                 }
             }
+            .navigationDestination(item: $selectedVenueId) { venueId in
+                VenueDetailView(venueId: venueId)
+            }
         }
     }
     
@@ -132,13 +157,8 @@ struct VenueFeedView: View {
     // MARK: - View Components
     
     private var loadingView: some View {
-        VStack(spacing: Theme.Layout.spacing) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primary))
-                .scaleEffect(1.5)
-            Text("Loading venues...")
-                .font(Theme.Fonts.subheadline)
-                .foregroundColor(Theme.Colors.textSecondary)
+        ScrollView {
+            SkeletonLoadingView(count: 4)
         }
     }
     
@@ -216,7 +236,13 @@ struct VenueFeedView: View {
             await viewModel.refresh()
         }
     }
-
+    
+    private var mapView: some View {
+        MapFeedView(venues: filteredVenues) { venueId in
+            selectedVenueId = venueId
+        }
+        .id(filteredVenues.map { $0.id }) // Force recreation when venue list changes
+    }
     
     private var allVenuesSection: some View {
         Group {

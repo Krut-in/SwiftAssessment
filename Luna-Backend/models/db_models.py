@@ -88,7 +88,8 @@ class VenueDB(Base):
         name: Name of the venue
         category: Category type (e.g., "Coffee Shop", "Restaurant")
         description: Detailed description of the venue
-        image: URL to venue's image
+        image: URL to venue's primary image (for backward compatibility)
+        images: JSON array of image URLs for multi-image galleries (optional)
         address: Physical address of the venue
         latitude: Geographic latitude coordinate
         longitude: Geographic longitude coordinate
@@ -101,6 +102,7 @@ class VenueDB(Base):
     category = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
     image = Column(String(500), nullable=False)
+    images = Column(JSON, nullable=True)  # Store array of image URLs as JSON
     address = Column(String(500), nullable=False)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
@@ -141,9 +143,12 @@ class InterestDB(Base):
     venue = relationship("VenueDB", back_populates="interests")
     
     # Indexes for query performance
+    # Single column indexes for filtering
+    # Compound index for checking if user is interested in specific venue
     __table_args__ = (
         Index('idx_interest_user', 'user_id'),
         Index('idx_interest_venue', 'venue_id'),
+        Index('idx_interest_user_venue', 'user_id', 'venue_id'),  # Compound index for lookup
     )
     
     def __repr__(self):
@@ -254,3 +259,40 @@ class ActionItemDB(Base):
     
     def __repr__(self):
         return f"<ActionItemDB(id={self.id}, venue_id={self.venue_id}, status={self.status})>"
+
+
+class ActivityDB(Base):
+    """
+    Activity model for tracking user actions in venues (social feed).
+    
+    Tracks activities like expressing interest, booking, and check-ins.
+    Used to populate friend activity feeds.
+    
+    Attributes:
+        id: Unique identifier for the activity
+        user_id: ID of the user who performed the action
+        venue_id: ID of the venue the action relates to
+        action: Type of action ("interested", "booked", "checked_in")
+        created_at: Timestamp when the activity occurred
+    """
+    __tablename__ = "activities"
+    
+    id = Column(String(100), primary_key=True)
+    user_id = Column(String(100), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    venue_id = Column(String(100), ForeignKey("venues.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String(50), nullable=False)  # "interested", "booked", "checked_in"
+    created_at = Column(DateTime, default=lambda: datetime.now(), nullable=False)
+    
+    # Relationships
+    user = relationship("UserDB", backref="activities")
+    venue = relationship("VenueDB", backref="activities")
+    
+    # Indexes for efficient feed queries
+    __table_args__ = (
+        Index('idx_activity_user', 'user_id'),
+        Index('idx_activity_venue', 'venue_id'),
+        Index('idx_activity_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<ActivityDB(id={self.id}, user_id={self.user_id}, action={self.action})>"

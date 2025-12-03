@@ -122,22 +122,32 @@ struct FilterSheet: View {
                     Divider()
                     
                     HStack(spacing: 12) {
-                        // Clear All Button
+                        // Clear All Button (Enhanced with count and disabled state)
                         Button(action: {
                             let generator = UIImpactFeedbackGenerator(style: .medium)
                             generator.impactOccurred()
                             localFilters.reset()
                         }) {
-                            Text("Clear All")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.red)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.red, lineWidth: 2)
-                                )
+                            HStack(spacing: 6) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 14))
+                                Text("Clear All")
+                                    .font(.system(size: 16, weight: .medium))
+                                if localFilters.activeFilterCount > 0 {
+                                    Text("(\(localFilters.activeFilterCount))")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                            }
+                            .foregroundColor(localFilters.activeFilterCount > 0 ? .red : .gray)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(localFilters.activeFilterCount > 0 ? Color.red : Color.gray.opacity(0.3), lineWidth: 2)
+                            )
                         }
+                        .disabled(localFilters.activeFilterCount == 0)
+                        .opacity(localFilters.activeFilterCount == 0 ? 0.5 : 1.0)
                         
                         // Apply Filters Button
                         Button(action: {

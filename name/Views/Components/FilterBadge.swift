@@ -29,17 +29,20 @@ struct FilterBadge: View {
     
     var body: some View {
         if count > 0 {
-            ZStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 20, height: 20)
-                
-                Text("\(count)")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .offset(x: 8, y: -8)
-            .transition(.scale.combined(with: .opacity))
+            Text("\(count)")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(Color.red)
+                )
+                .fixedSize()
+                .frame(minWidth: 20, minHeight: 20)
+                .offset(x: 10, y: -10)
+                .transition(.scale.combined(with: .opacity))
+                .allowsHitTesting(false)
         }
     }
 }

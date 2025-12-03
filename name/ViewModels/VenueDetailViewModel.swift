@@ -75,7 +75,7 @@ class VenueDetailViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isInterested = false
     @Published var isTogglingInterest = false
-    @Published var successMessage: String?
+
     
     // MARK: - Private Properties
     
@@ -86,7 +86,7 @@ class VenueDetailViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(venueId: String, apiService: APIServiceProtocol = APIService(), appState: AppState = .shared) {
+    init(venueId: String, apiService: APIServiceProtocol = APIService(), appState: AppState) {
         self.venueId = venueId
         self.apiService = apiService
         self.appState = appState
@@ -124,26 +124,20 @@ class VenueDetailViewModel: ObservableObject {
         do {
             let response = try await apiService.fetchVenueDetail(venueId: venueId)
             
-            // Update UI on main thread
-            await MainActor.run {
-                self.venue = response.venue
-                self.interestedUsers = response.interested_users
-                // Check if current user is in interested users
-                self.isInterested = self.appState.isInterested(in: self.venueId)
-                self.isLoading = false
-            }
+            // Update UI - already on main thread due to @MainActor
+            self.venue = response.venue
+            self.interestedUsers = response.interested_users
+            // Check if current user is in interested users
+            self.isInterested = self.appState.isInterested(in: self.venueId)
+            self.isLoading = false
         } catch let error as APIError {
             // Handle API-specific errors
-            await MainActor.run {
-                self.errorMessage = error.errorDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.errorDescription
+            self.isLoading = false
         } catch {
             // Handle unexpected errors
-            await MainActor.run {
-                self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+            self.isLoading = false
         }
     }
     
@@ -151,42 +145,31 @@ class VenueDetailViewModel: ObservableObject {
     func toggleInterest() async {
         isTogglingInterest = true
         errorMessage = nil
-        successMessage = nil
         
         do {
-            let response = try await appState.toggleInterest(venueId: venueId)
+            // Create venue info for social feed broadcast
+            var venueInfo: ActivityVenue? = nil
+            if let venue = venue {
+                venueInfo = ActivityVenue(
+                    id: venue.id,
+                    name: venue.name,
+                    category: venue.category,
+                    image: venue.image
+                )
+            }
+            
+            let response = try await appState.toggleInterest(venueId: venueId, venueInfo: venueInfo)
             
             // Reload venue details to get updated interested users count
             await loadVenueDetail()
             
-            // Show success feedback (action item notification handled by AppState)
-            await MainActor.run {
-                self.successMessage = response.message ?? "Interest updated successfully"
-            }
-            
-            // Clear success message after 2 seconds
-            Task { @MainActor in
-                do {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
-                    self.successMessage = nil
-                } catch {
-                    // Task cancelled - safe to ignore
-                }
-            }
-            
-            await MainActor.run {
-                self.isTogglingInterest = false
-            }
+            self.isTogglingInterest = false
         } catch let error as APIError {
-            await MainActor.run {
-                self.errorMessage = error.errorDescription
-                self.isTogglingInterest = false
-            }
+            self.errorMessage = error.errorDescription
+            self.isTogglingInterest = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to update interest: \(error.localizedDescription)"
-                self.isTogglingInterest = false
-            }
+            self.errorMessage = "Failed to update interest: \(error.localizedDescription)"
+            self.isTogglingInterest = false
         }
     }
     

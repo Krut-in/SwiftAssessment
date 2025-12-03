@@ -89,24 +89,41 @@ class VenueFeedViewModel: ObservableObject {
     
     private let apiService: APIServiceProtocol
     private let appState: AppState
+    private let persistence: PersistenceController
     private var cancellables = Set<AnyCancellable>()
 
     
     // MARK: - Initialization
     
-    init(apiService: APIServiceProtocol = APIService(), appState: AppState = .shared) {
+    init(apiService: APIServiceProtocol = APIService(), appState: AppState, persistence: PersistenceController = .shared) {
         self.apiService = apiService
         self.appState = appState
+        self.persistence = persistence
     }
     
     // MARK: - Public Methods
     
     /// Loads venues from the API with current filters
+    /// Implements cache-first strategy: loads cached data first, then fetches from network
     /// Updates venues array, loading state, and error message
     func loadVenues() async {
         // Prevent multiple simultaneous loads
         guard !isLoading else { return }
         
+        // Check if we have cached data
+        let hasCached = persistence.hasCachedData()
+        
+        // Load from cache first for instant UI
+        if hasCached {
+            let cachedVenus = persistence.fetchCachedVenues()
+            // Trust cached order (matches last server response)
+            self.venues = cachedVenus
+            if let cacheTime = persistence.getCacheTimestamp() {
+                self.lastUpdated = cacheTime
+            }
+        }
+        
+        // Always try to fetch fresh data from network
         isLoading = true
         errorMessage = nil
         
@@ -114,24 +131,28 @@ class VenueFeedViewModel: ObservableObject {
             // Use current user ID from AppState
             let fetchedVenues = try await apiService.fetchVenues(userId: appState.currentUserId, filters: filters)
             
-            // Update UI on main thread
-            await MainActor.run {
-                self.venues = self.sortVenues(fetchedVenues)
-                self.isLoading = false
-                self.lastUpdated = Date()
-            }
+            // Save to cache for offline access
+            persistence.saveVenues(fetchedVenues)
+            
+            // Update UI - already on main thread due to @MainActor
+            // Trust backend-provided sort order (server-side sorting)
+            self.venues = fetchedVenues
+            self.isLoading = false
+            self.lastUpdated = Date()
         } catch let error as APIError {
             // Handle API-specific errors
-            await MainActor.run {
+            // Only show error if we don't have cached data
+            if !hasCached {
                 self.errorMessage = error.errorDescription
-                self.isLoading = false
             }
+            self.isLoading = false
         } catch {
             // Handle unexpected errors
-            await MainActor.run {
+            // Only show error if we don't have cached data
+            if !hasCached {
                 self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                self.isLoading = false
             }
+            self.isLoading = false
         }
     }
     
@@ -181,60 +202,6 @@ class VenueFeedViewModel: ObservableObject {
     
     /// Returns formatted relative time since last update
     var lastUpdatedText: String {
-        guard let lastUpdated = lastUpdated else {
-            return "Never"
-        }
-        
-        let now = Date()
-        let seconds = Int(now.timeIntervalSince(lastUpdated))
-        
-        if seconds < 60 {
-            return "Just now"
-        } else if seconds < 3600 {
-            let minutes = seconds / 60
-            return "\(minutes) minute\(minutes == 1 ? "" : "s") ago"
-        } else if seconds < 86400 {
-            let hours = seconds / 3600
-            return "\(hours) hour\(hours == 1 ? "" : "s") ago"
-        } else {
-            let days = seconds / 86400
-            return "\(days) day\(days == 1 ? "" : "s") ago"
-        }
-    }
-    
-    // MARK: - Private Methods
-    
-    /// Sorts venues based on the current sort option
-    private func sortVenues(_ venues: [VenueListItem]) -> [VenueListItem] {
-        switch filters.sortBy {
-        case .distance:
-            return venues.sorted {
-                // Sort by distance ascending (closest first)
-                // Treat nil distance as farthest
-                guard let dist1 = $0.distance_km else { return false }
-                guard let dist2 = $1.distance_km else { return true }
-                return dist1 < dist2
-            }
-            
-        case .popularity:
-            return venues.sorted {
-                // Sort by interested count descending (highest first)
-                if $0.interested_count != $1.interested_count {
-                    return $0.interested_count > $1.interested_count
-                }
-                // Secondary sort by name
-                return $0.name < $1.name
-            }
-            
-        case .name:
-            return venues.sorted {
-                // Sort by name ascending (A-Z)
-                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
-            
-        case .friends:
-            // For now, fallback to popularity as friend data might be limited in list item
-            return venues.sorted { $0.interested_count > $1.interested_count }
-        }
+        lastUpdated?.relativeTimeString() ?? "Never"
     }
 }

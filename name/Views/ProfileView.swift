@@ -46,8 +46,12 @@ struct ProfileView: View {
     
     // MARK: - Properties
     
-    @StateObject private var viewModel = ProfileViewModel()
+    @StateObject private var viewModel = ProfileViewModel(appState: .shared)
     @ObservedObject private var appState = AppState.shared
+    
+    // MARK: - State
+    
+    @State private var showUserSwitcher = false
     
     // MARK: - Body
     
@@ -259,6 +263,25 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showUserSwitcher = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.2.circle.fill")
+                                .font(.title3)
+                            Text("Switch User")
+                                .font(Theme.Fonts.caption)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundColor(Theme.Colors.primary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showUserSwitcher) {
+                UserSwitcherView()
+            }
             .task {
                 // Load profile once when view appears in NavigationStack
                 // .task runs on view appearance and cancels automatically on disappearance
@@ -448,6 +471,7 @@ struct VenueGridCard: View {
                 .fontWeight(.semibold)
                 .foregroundColor(Theme.Colors.textPrimary)
                 .lineLimit(2)
+                .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Theme.Colors.cardBackground)

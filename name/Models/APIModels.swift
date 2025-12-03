@@ -64,6 +64,21 @@ struct RecommendationsResponse: Codable {
     let recommendations: [RecommendationItem]
 }
 
+/// Score breakdown for recommendation transparency
+struct ScoreBreakdown: Codable, Hashable {
+    let popularity: Double      // 0-100, contribution from venue popularity
+    let categoryMatch: Double   // 0-100, contribution from user category preferences
+    let friendSignal: Double    // 0-100, contribution from friends' interest
+    let proximity: Double       // 0-100, contribution from distance to user
+    
+    enum CodingKeys: String, CodingKey {
+        case popularity
+        case categoryMatch = "category_match"
+        case friendSignal = "friend_signal"
+        case proximity
+    }
+}
+
 /// Individual recommendation item with score and reason
 struct RecommendationItem: Codable, Identifiable, Hashable {
     let venue: Venue
@@ -72,6 +87,7 @@ struct RecommendationItem: Codable, Identifiable, Hashable {
     let already_interested: Bool
     let friends_interested: Int
     let total_interested: Int
+    let score_breakdown: ScoreBreakdown?
     
     // Computed property for Identifiable conformance
     var id: String {

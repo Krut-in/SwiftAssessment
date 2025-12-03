@@ -49,40 +49,58 @@ struct VenueDetailView: View {
     @ObservedObject private var appState = AppState.shared
     @Environment(\.dismiss) private var dismiss
     @State private var isButtonPressed = false
-    @State private var showShareSheet = false
     
     // MARK: - Initialization
     
     init(venueId: String) {
         self.venueId = venueId
-        _viewModel = StateObject(wrappedValue: VenueDetailViewModel(venueId: venueId))
+        _viewModel = StateObject(wrappedValue: VenueDetailViewModel(venueId: venueId, appState: .shared))
     }
     
     // MARK: - Body
     
     var body: some View {
-        ScrollView {
+        ZStack {
+            ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if let venue = viewModel.venue {
-                    // Hero Image with overlay back button
+                    // Multi-Image Gallery with overlay back button
                     ZStack(alignment: .topLeading) {
-                        AsyncImage(url: URL(string: venue.image)) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(height: 300)
-                                    .clipped()
-                            default:
-                                Rectangle()
-                                    .fill(Theme.Colors.secondaryBackground)
-                                    .frame(height: 300)
-                                    .overlay {
-                                        ProgressView()
-                                    }
+                        // TabView image carousel
+                        TabView {
+                            ForEach(venue.allImages, id: \.self) { imageUrl in
+                                CachedAsyncImage(url: imageUrl) { image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(height: 400)
+                                        .clipped()
+                                } placeholder: {
+                                    Rectangle()
+                                        .fill(Theme.Colors.secondaryBackground)
+                                        .frame(height: 400)
+                                        .overlay {
+                                            ProgressView()
+                                        }
+                                } failure: {
+                                    Rectangle()
+                                        .fill(categoryColor(for: venue.category).opacity(0.2))
+                                        .frame(height: 400)
+                                        .overlay {
+                                            VStack(spacing: 12) {
+                                                Image(systemName: categoryIcon(for: venue.category))
+                                                    .font(.system(size: 60))
+                                                    .foregroundColor(categoryColor(for: venue.category))
+                                                Text("Image unavailable")
+                                                    .font(Theme.Fonts.subheadline)
+                                                    .foregroundColor(Theme.Colors.textSecondary)
+                                            }
+                                        }
+                                }
                             }
                         }
+                        .tabViewStyle(.page(indexDisplayMode: .always))
+                        .frame(height: 400)
                         
                         // Button overlay container
                         HStack {
@@ -101,14 +119,12 @@ struct VenueDetailView: View {
                             
                             Spacer()
                             
-                            // Share button
-                            Button {
-                                // Haptic feedback
-                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                impactFeedback.impactOccurred()
-                                
-                                showShareSheet = true
-                            } label: {
+                            // Share button with deep link
+                            ShareLink(
+                                item: URL(string: "luna://venues/\(venue.id)")!,
+                                subject: Text(venue.name),
+                                message: Text("Check out \(venue.name) on Luna! 🎉")
+                            ) {
                                 Image(systemName: "square.and.arrow.up")
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(Theme.Colors.textPrimary)
@@ -117,6 +133,11 @@ struct VenueDetailView: View {
                                     .clipShape(Circle())
                                     .elevationLow()
                             }
+                            .simultaneousGesture(TapGesture().onEnded {
+                                // Haptic feedback
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
+                            })
                         }
                         .padding([.leading, .trailing, .top], Theme.Layout.padding)
                     }
@@ -228,20 +249,6 @@ struct VenueDetailView: View {
                         .disabled(viewModel.isTogglingInterest)
                         .padding(.vertical, 8)
                         
-                        // Success Message
-                        if let successMessage = viewModel.successMessage {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(Theme.Colors.success)
-                                Text(successMessage)
-                                    .font(Theme.Fonts.subheadline)
-                                    .foregroundColor(Theme.Colors.success)
-                            }
-                            .padding()
-                            .background(Theme.Colors.success.opacity(0.1))
-                            .cornerRadius(Theme.Layout.smallCornerRadius)
-                        }
-                        
                         // People Who Want to Go Section
                         if !viewModel.interestedUsers.isEmpty {
                             VStack(alignment: .leading, spacing: Theme.Layout.spacing) {
@@ -253,24 +260,29 @@ struct VenueDetailView: View {
                                     HStack(spacing: Theme.Layout.spacing) {
                                         ForEach(viewModel.interestedUsers) { user in
                                             VStack(spacing: 8) {
-                                                AsyncImage(url: URL(string: user.avatar)) { phase in
-                                                    switch phase {
-                                                    case .success(let image):
-                                                        image
-                                                            .resizable()
-                                                            .aspectRatio(contentMode: .fill)
-                                                            .frame(width: 60, height: 60)
-                                                            .clipShape(Circle())
-                                                    default:
-                                                        Circle()
-                                                            .fill(Theme.Colors.secondaryBackground)
-                                                            .frame(width: 60, height: 60)
-                                                            .overlay {
-                                                                Image(systemName: "person.fill")
-                                                                    .foregroundColor(Theme.Colors.textSecondary)
-                                                            }
-                                                    }
-                                                }
+                                                CachedAsyncImage(url: user.avatar) { image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 60, height: 60)
+                                        .clipShape(Circle())
+                                } placeholder: {
+                                    Circle()
+                                        .fill(Theme.Colors.secondaryBackground)
+                                        .frame(width: 60, height: 60)
+                                        .overlay {
+                                            Image(systemName: "person.fill")
+                                                .foregroundColor(Theme.Colors.textSecondary)
+                                        }
+                                } failure: {
+                                    Circle()
+                                        .fill(Theme.Colors.secondaryBackground)
+                                        .frame(width: 60, height: 60)
+                                        .overlay {
+                                            Image(systemName: "person.fill")
+                                                .foregroundColor(Theme.Colors.textSecondary)
+                                        }
+                                }
                                                 
                                                 Text(user.name)
                                                     .font(Theme.Fonts.caption)
@@ -337,18 +349,16 @@ struct VenueDetailView: View {
                     .frame(height: 400)
                 }
             }
-        }
+            }  // Close ScrollView
+        }  // Close ZStack
+        .enableNativeSwipeBack()
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .task {
             await viewModel.loadVenueDetail()
         }
-        .sheet(isPresented: $showShareSheet) {
-            if let venue = viewModel.venue {
-                ShareSheet(venue: venue)
-            }
-        }
-    }
+    }  // Close body
+    
     
     // MARK: - Helper Methods
     
@@ -382,37 +392,27 @@ struct VenueDetailView: View {
             return Theme.Colors.textSecondary
         }
     }
-}
-
-// MARK: - Share Sheet Wrapper
-
-struct ShareSheet: UIViewControllerRepresentable {
-    let venue: Venue
     
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        // Format share text
-        let shareText = "Check out \(venue.name) - \(venue.category) at \(venue.address)! 🎉"
-        
-        // Create activity items (text and optionally image)
-        var activityItems: [Any] = [shareText]
-        
-        // Try to load image if URL is valid
-        if let imageURL = URL(string: venue.image),
-           let imageData = try? Data(contentsOf: imageURL),
-           let image = UIImage(data: imageData) {
-            activityItems.append(image)
+    /// Returns an icon based on venue category
+    /// - Parameter category: The venue category string
+    /// - Returns: SF Symbol name for the category
+    private func categoryIcon(for category: String) -> String {
+        switch category.lowercased() {
+        case "coffee shop", "coffee", "café", "cafe":
+            return "cup.and.saucer.fill"
+        case "restaurant", "food", "dining":
+            return "fork.knife"
+        case "bar", "nightlife", "pub", "lounge":
+            return "wineglass.fill"
+        case "museum", "cultural", "culture", "art", "gallery":
+            return "building.columns.fill"
+        case "park", "outdoor", "nature":
+            return "leaf.fill"
+        case "entertainment", "theater", "cinema":
+            return "theatermasks.fill"
+        default:
+            return "photo.fill"
         }
-        
-        let activityViewController = UIActivityViewController(
-            activityItems: activityItems,
-            applicationActivities: nil
-        )
-        
-        return activityViewController
-    }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
-        // No update needed
     }
 }
 

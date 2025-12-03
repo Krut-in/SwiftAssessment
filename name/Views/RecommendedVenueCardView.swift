@@ -84,6 +84,9 @@ struct RecommendedVenueCardView: View {
     /// Animation state for heart button scale effect
     @State private var isAnimating = false
     
+    /// Controls score breakdown popover display
+    @State private var showScoreBreakdown = false
+    
     // MARK: - Initialization
     
     /// Initializes the recommended venue card with recommendation data
@@ -128,62 +131,76 @@ struct RecommendedVenueCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             // MARK: Venue Image with Score Badge
             ZStack(alignment: .topTrailing) {
-                // Async loaded venue image with loading states
-                AsyncImage(url: URL(string: recommendation.venue.image)) { phase in
-                    switch phase {
-                    case .empty:
-                        // Placeholder while loading
-                        Rectangle()
-                            .fill(Theme.Colors.secondaryBackground)
-                            .aspectRatio(4/3, contentMode: .fill)
-                            .overlay {
-                                ProgressView()
-                            }
-                    case .success(let image):
-                        // Successfully loaded image
-                        image
-                            .resizable()
-                            .aspectRatio(4/3, contentMode: .fill)
-                    case .failure:
-                        // Failed to load image - show placeholder
-                        Rectangle()
-                            .fill(Theme.Colors.secondaryBackground)
-                            .aspectRatio(4/3, contentMode: .fill)
-                            .overlay {
-                                Image(systemName: "photo")
-                                    .font(Theme.Fonts.largeTitle)
+                // Cached venue image with loading states
+                CachedAsyncImage(url: recommendation.venue.image) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(4/3, contentMode: .fill)
+                } placeholder: {
+                    Rectangle()
+                        .fill(Theme.Colors.secondaryBackground)
+                        .aspectRatio(4/3, contentMode: .fill)
+                        .overlay {
+                            ProgressView()
+                        }
+                } failure: {
+                    Rectangle()
+                        .fill(categoryColor(for: recommendation.venue.category).opacity(0.2))
+                        .aspectRatio(4/3, contentMode: .fill)
+                        .overlay {
+                            VStack(spacing: 8) {
+                                Image(systemName: categoryIcon(for: recommendation.venue.category))
+                                    .font(.system(size: 40))
+                                    .foregroundColor(categoryColor(for: recommendation.venue.category))
+                                Text("Image unavailable")
+                                    .font(Theme.Fonts.caption)
                                     .foregroundColor(Theme.Colors.textSecondary)
                             }
-                    @unknown default:
-                        // Fallback for future AsyncImagePhase cases
-                        Rectangle()
-                            .fill(Theme.Colors.secondaryBackground)
-                            .aspectRatio(4/3, contentMode: .fill)
-                    }
+                        }
                 }
                 .clipped()
                 
-                // MARK: Recommendation Score Badge
-                Text(scoreText)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.green.opacity(0.8), Color.teal.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                // MARK: Recommendation Score Badge with Info Button
+                HStack(spacing: 6) {
+                    Text(scoreText)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    // Info button (only show if breakdown available)
+                    if recommendation.score_breakdown != nil {
+                        Button {
+                            showScoreBreakdown.toggle()
+                        } label: {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    LinearGradient(
+                        colors: [Color.green.opacity(0.8), Color.teal.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
-                    .clipShape(Capsule())
-                    .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 2)
-                    .padding(12)
-                    .accessibilityLabel("Recommendation score \(scoreText) out of 10")
+                )
+                .clipShape(Capsule())
+                .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 2)
+                .padding(12)
+                .accessibilityLabel("Recommendation score \(scoreText) out of 10")
+                .popover(isPresented: $showScoreBreakdown) {
+                    if let breakdown = recommendation.score_breakdown {
+                        ScoreBreakdownView(breakdown: breakdown)
+                            .presentationCompactAdaptation(.popover)
+                    }
+                }
             }
             
             // MARK: Venue Info Section
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Theme.Layout.smallSpacing) {
                 // MARK: Category Badge and Heart Button Row
                 HStack {
                     // MARK: Category Badge
@@ -214,7 +231,7 @@ struct RecommendedVenueCardView: View {
                     .accessibilityLabel(isInterested ? "Remove from interested venues" : "Mark as interested")
                     .accessibilityHint("Double tap to toggle interest")
                 }
-                .padding(.top, 12)
+                .padding(.top, Theme.Layout.spacing)
                 
                 // MARK: Venue Name
                 Text(recommendation.venue.name)
@@ -240,11 +257,11 @@ struct RecommendedVenueCardView: View {
                         .font(Theme.Fonts.subheadline)
                         .foregroundColor(Theme.Colors.textSecondary)
                 }
-                .padding(.bottom, 12)
+                .padding(.bottom, Theme.Layout.spacing)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(interestedCountText)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Theme.Layout.padding)
         }
         .background(Theme.Colors.cardBackground)
         .cornerRadius(Theme.Layout.cornerRadius)
@@ -300,7 +317,15 @@ struct RecommendedVenueCardView: View {
         // Toggle interest via AppState (persists to API)
         Task {
             do {
-                let response = try await appState.toggleInterest(venueId: recommendation.venue.id)
+                // Create venue info for social feed broadcast
+                let venueInfo = ActivityVenue(
+                    id: recommendation.venue.id,
+                    name: recommendation.venue.name,
+                    category: recommendation.venue.category,
+                    image: recommendation.venue.image
+                )
+                
+                let response = try await appState.toggleInterest(venueId: recommendation.venue.id, venueInfo: venueInfo)
                 
                 // Check if operation was successful
                 if response.success {
@@ -367,6 +392,28 @@ struct RecommendedVenueCardView: View {
             return Theme.Colors.textSecondary
         }
     }
+    
+    /// Returns an icon based on venue category
+    /// - Parameter category: The venue category string
+    /// - Returns: SF Symbol name for the category
+    private func categoryIcon(for category: String) -> String {
+        switch category.lowercased() {
+        case "coffee shop", "coffee", "café", "cafe":
+            return "cup.and.saucer.fill"
+        case "restaurant", "food", "dining":
+            return "fork.knife"
+        case "bar", "nightlife", "pub", "lounge":
+            return "wineglass.fill"
+        case "museum", "cultural", "culture", "art", "gallery":
+            return "building.columns.fill"
+        case "park", "outdoor", "nature":
+            return "leaf.fill"
+        case "entertainment", "theater", "cinema":
+            return "theatermasks.fill"
+        default:
+            return "photo.fill"
+        }
+    }
 }
 
 // MARK: - Preview
@@ -379,16 +426,24 @@ struct RecommendedVenueCardView: View {
             category: "Coffee Shop",
             description: "Artisanal coffee roasters",
             image: "https://picsum.photos/400/300",
+            images: nil,  // No multi-image data for preview
             address: "123 Main St",
             latitude: 40.7589,
             longitude: -73.9851,
-            distance_km: 2.5
+            distance_km: 2.5,
+            interested_count: 4  // For recommendation preview
         ),
         score: 8.5,
         reason: "Popular venue, Matches your interests",
         already_interested: false,
         friends_interested: 3,
-        total_interested: 4
+        total_interested: 4,
+        score_breakdown: ScoreBreakdown(
+            popularity: 25,
+            categoryMatch: 30,
+            friendSignal: 25,
+            proximity: 20
+        )
     ))
     .padding()
 }

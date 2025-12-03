@@ -28,17 +28,7 @@
 
 import SwiftUI
 
-// MARK: - Confetti Particle Model
 
-struct ConfettiParticle: Identifiable {
-    let id = UUID()
-    let x: CGFloat
-    let y: CGFloat
-    let color: Color
-    let size: CGFloat
-    let rotation: Double
-    let delay: Double
-}
 
 // MARK: - Action Item Toast
 
@@ -47,8 +37,6 @@ struct ActionItemToast: View {
     @Binding var isShowing: Bool
     @ObservedObject private var appState = AppState.shared
     
-    @State private var confettiParticles: [ConfettiParticle] = []
-    @State private var animateConfetti = false
     @State private var dismissTask: Task<Void, Never>?
     
     var body: some View {
@@ -65,24 +53,6 @@ struct ActionItemToast: View {
             VStack {
                 if isShowing, let item = actionItem {
                     ZStack {
-                        // Confetti particles
-                        ForEach(confettiParticles) { particle in
-                            Circle()
-                                .fill(particle.color)
-                                .frame(width: particle.size, height: particle.size)
-                                .rotationEffect(.degrees(particle.rotation))
-                                .offset(
-                                    x: particle.x,
-                                    y: animateConfetti ? particle.y - 200 : particle.y
-                                )
-                                .opacity(animateConfetti ? 0 : 1)
-                                .animation(
-                                    .easeOut(duration: 1.2)
-                                        .delay(particle.delay),
-                                    value: animateConfetti
-                                )
-                        }
-                        
                         // Toast content
                         toastContent(item: item)
                     }
@@ -149,33 +119,9 @@ struct ActionItemToast: View {
         // Haptic feedback - device shake
         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
         impactFeedback.impactOccurred()
-        
-        // Generate confetti particles
-        generateConfetti()
-        
-        // Animate confetti upward
-        withAnimation {
-            animateConfetti = true
-        }
     }
     
-    private func generateConfetti() {
-        confettiParticles = []
-        let toastYPosition: CGFloat = 100 // Approximate toast position
-        
-        // Create 20 particles
-        for i in 0..<20 {
-            let particle = ConfettiParticle(
-                x: CGFloat.random(in: -150...150),
-                y: toastYPosition + 80, // Start below toast
-                color: [Theme.Colors.accent, Theme.Colors.primary, Theme.Colors.success, Theme.Colors.warning].randomElement() ?? Theme.Colors.accent,
-                size: CGFloat.random(in: 4...8),
-                rotation: Double.random(in: 0...360),
-                delay: Double(i) * 0.02 // Stagger animation
-            )
-            confettiParticles.append(particle)
-        }
-    }
+
     
     private func navigateToProfile() {
         // Navigate to profile tab (index 2)
@@ -209,11 +155,9 @@ struct ActionItemToast: View {
             isShowing = false
         }
         
-        // Clear action item and confetti after animation completes
+        // Clear action item after animation completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             actionItem = nil
-            confettiParticles = []
-            animateConfetti = false
         }
     }
 }

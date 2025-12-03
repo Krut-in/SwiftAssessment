@@ -38,7 +38,7 @@ struct RecommendedFeedView: View {
     
     // MARK: - Properties
     
-    @StateObject private var viewModel = RecommendedFeedViewModel()
+    @StateObject private var viewModel = RecommendedFeedViewModel(appState: .shared)
     @ObservedObject private var appState = AppState.shared
     
     // MARK: - Body
@@ -63,7 +63,7 @@ struct RecommendedFeedView: View {
                     recommendationListView
                 }
             }
-            .navigationTitle("Recommended")
+            .navigationTitle("For You")
             .navigationBarTitleDisplayMode(.large)
             .task {
                 await viewModel.loadRecommendations()
@@ -96,13 +96,8 @@ struct RecommendedFeedView: View {
     // MARK: - View Components
     
     private var loadingView: some View {
-        VStack(spacing: Theme.Layout.spacing) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.primary))
-                .scaleEffect(1.5)
-            Text("Loading recommendations...")
-                .font(Theme.Fonts.subheadline)
-                .foregroundColor(Theme.Colors.textSecondary)
+        ScrollView {
+            SkeletonLoadingView(count: 4)
         }
     }
     
@@ -149,27 +144,28 @@ struct RecommendedFeedView: View {
         ScrollView {
             LazyVStack(spacing: Theme.Layout.spacing) {
                 // Header Section with Sort Menu
-                HStack {
-                    Text("For You")
-                        .font(Theme.Fonts.title2)
-                        .fontWeight(.bold)
-                    
-                    Spacer()
-                    
-                    SortMenu(selectedSort: $viewModel.sortBy) {
-                        viewModel.applySort()
+                VStack(spacing: Theme.Layout.spacing) {
+                    HStack {
+                        Text("For You")
+                            .font(Theme.Fonts.title2)
+                            .fontWeight(.bold)
+                        
+                        Spacer()
+                        
+                        SortMenu(selectedSort: $viewModel.sortBy) {
+                            viewModel.applySort()
+                        }
                     }
-                }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                
-                // Category Filter Bar
-                if !viewModel.availableCategories.isEmpty {
-                    CategoryFilterView(
-                        categories: viewModel.availableCategories,
-                        categoryCounts: viewModel.categoryCounts,
-                        selectedCategory: $viewModel.selectedCategory
-                    )
+                    .padding(.horizontal)
+                    
+                    // Category Filter Bar
+                    if !viewModel.availableCategories.isEmpty {
+                        CategoryFilterView(
+                            categories: viewModel.availableCategories,
+                            categoryCounts: viewModel.categoryCounts,
+                            selectedCategory: $viewModel.selectedCategory
+                        )
+                    }
                 }
                 
                 // Check if filtered recommendations is empty

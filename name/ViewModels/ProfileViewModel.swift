@@ -82,22 +82,31 @@ class ProfileViewModel: ObservableObject {
     private let apiService: APIServiceProtocol
     private let appState: AppState
     private var cancellables = Set<AnyCancellable>()
+    private var dismissingItems = Set<String>() // Track in-flight dismissals
     
     // MARK: - Initialization
     
-    init(apiService: APIServiceProtocol = APIService(), appState: AppState = .shared) {
+    init(apiService: APIServiceProtocol = APIService(), appState: AppState) {
         self.apiService = apiService
         self.appState = appState
         
-        // Observe app state for interest changes to reload profile
+        // Observe app state for user changes to reload profile
         setupObservers()
     }
     
     // MARK: - Private Methods
     
     private func setupObservers() {
-        // Observer removed to prevent infinite reload loop
-        // Profile will refresh on manual pull-to-refresh or when view appears
+        // Observe currentUserId changes to reload profile when user switches
+        appState.$currentUserId
+            .dropFirst() // Skip initial value
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    await self?.loadProfile()
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods
@@ -110,63 +119,96 @@ class ProfileViewModel: ObservableObject {
         do {
             let response = try await apiService.fetchUserProfile(userId: appState.currentUserId)
             
-            await MainActor.run {
-                self.user = response.user
-                self.interestedVenues = response.interested_venues
-                self.actionItems = response.action_items
-                self.isLoading = false
-                self.lastUpdated = Date()
-                
-                // Update global action item count for badge
-                appState.actionItemCount = response.action_items.count
-            }
+            // Update state - already on main thread due to @MainActor
+            self.user = response.user
+            self.interestedVenues = response.interested_venues
+            self.actionItems = response.action_items
+            self.isLoading = false
+            self.lastUpdated = Date()
+            
+            // Update global action item count for badge
+            appState.actionItemCount = response.action_items.count
         } catch let error as APIError {
-            await MainActor.run {
-                self.errorMessage = error.errorDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.errorDescription
+            self.isLoading = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            self.errorMessage = "An unexpected error occurred: \(error.localizedDescription)"
+            self.isLoading = false
         }
     }
     
-    /// Completes an action item
+    /// Completes an action item with optimistic UI update
     /// - Parameter itemId: The ID of the action item to complete
     func completeActionItem(_ itemId: String) async {
+        guard !dismissingItems.contains(itemId) else { return }
+        dismissingItems.insert(itemId)
+        
+        // Find item to complete
+        guard let itemIndex = actionItems.firstIndex(where: { $0.id == itemId }) else {
+            dismissingItems.remove(itemId)
+            return
+        }
+        
+        let removedItem = actionItems[itemIndex]
+        
+        // Optimistic update - remove immediately
+        actionItems.remove(at: itemIndex)
+        appState.actionItemCount = actionItems.count
+        
         do {
             _ = try await apiService.completeActionItem(itemId: itemId, userId: appState.currentUserId)
-            
-            // Remove from local list
-            await MainActor.run {
-                actionItems.removeAll { $0.id == itemId }
-                appState.actionItemCount = actionItems.count
-            }
+            // Success - item already removed
         } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to complete action item: \(error.localizedDescription)"
+            // Rollback - restore item
+            actionItems.insert(removedItem, at: itemIndex)
+            appState.actionItemCount = actionItems.count
+            
+            // Set detailed error message
+            if let apiError = error as? APIError {
+                errorMessage = "Failed to complete action item: \(apiError.errorDescription ?? "Unknown error")"
+            } else {
+                errorMessage = "Failed to complete action item: \(error.localizedDescription)"
             }
         }
+        
+        dismissingItems.remove(itemId)
     }
     
-    /// Dismisses an action item
+    /// Dismisses an action item with optimistic UI update
     /// - Parameter itemId: The ID of the action item to dismiss
     func dismissActionItem(_ itemId: String) async {
+        guard !dismissingItems.contains(itemId) else { return }
+        dismissingItems.insert(itemId)
+        
+        // Find item to dismiss
+        guard let itemIndex = actionItems.firstIndex(where: { $0.id == itemId }) else {
+            dismissingItems.remove(itemId)
+            return
+        }
+        
+        let removedItem = actionItems[itemIndex]
+        
+        // Optimistic update - remove immediately
+        actionItems.remove(at: itemIndex)
+        appState.actionItemCount = actionItems.count
+        
         do {
             _ = try await apiService.dismissActionItem(itemId: itemId, userId: appState.currentUserId)
-            
-            // Remove from local list
-            await MainActor.run {
-                actionItems.removeAll { $0.id == itemId }
-                appState.actionItemCount = actionItems.count
-            }
+            // Success - item already removed
         } catch {
-            await MainActor.run {
-                self.errorMessage = "Failed to dismiss action item: \(error.localizedDescription)"
+            // Rollback - restore item
+            actionItems.insert(removedItem, at: itemIndex)
+            appState.actionItemCount = actionItems.count
+            
+            // Set detailed error message
+            if let apiError = error as? APIError {
+                errorMessage = "Failed to dismiss action item: \(apiError.errorDescription ?? "Unknown error")"
+            } else {
+                errorMessage = "Failed to dismiss action item: \(error.localizedDescription)"
             }
         }
+        
+        dismissingItems.remove(itemId)
     }
     
     /// Refreshes the profile
@@ -181,24 +223,6 @@ class ProfileViewModel: ObservableObject {
     
     /// Returns formatted relative time since last update
     var lastUpdatedText: String {
-        guard let lastUpdated = lastUpdated else {
-            return "Never"
-        }
-        
-        let now = Date()
-        let seconds = Int(now.timeIntervalSince(lastUpdated))
-        
-        if seconds < 60 {
-            return "Just now"
-        } else if seconds < 3600 {
-            let minutes = seconds / 60
-            return "\(minutes) minute\(minutes == 1 ? "" : "s") ago"
-        } else if seconds < 86400 {
-            let hours = seconds / 3600
-            return "\(hours) hour\(hours == 1 ? "" : "s") ago"
-        } else {
-            let days = seconds / 86400
-            return "\(days) day\(days == 1 ? "" : "s") ago"
-        }
+        lastUpdated?.relativeTimeString() ?? "Never"
     }
 }

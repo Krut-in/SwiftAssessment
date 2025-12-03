@@ -111,38 +111,32 @@ struct VenueCardView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // MARK: Venue Image
-            AsyncImage(url: URL(string: venue.image)) { phase in
-                switch phase {
-                case .empty:
-                    // Placeholder while loading
-                    Rectangle()
-                        .fill(Theme.Colors.secondaryBackground)
-                        .aspectRatio(4/3, contentMode: .fill)
-                        .overlay {
-                            ProgressView()
-                        }
-                case .success(let image):
-                    // Successfully loaded image
-                    image
-                        .resizable()
-                        .aspectRatio(4/3, contentMode: .fill)
-                case .failure:
-                    // Failed to load image - show placeholder
-                    Rectangle()
-                        .fill(Theme.Colors.secondaryBackground)
-                        .aspectRatio(4/3, contentMode: .fill)
-                        .overlay {
-                            Image(systemName: "photo")
-                                .font(Theme.Fonts.largeTitle)
+            // MARK: Venue Image (Cached for offline support)
+            CachedAsyncImage(url: venue.image) { image in
+                image
+                    .resizable()
+                    .aspectRatio(4/3, contentMode: .fill)
+            } placeholder: {
+                Rectangle()
+                    .fill(Theme.Colors.secondaryBackground)
+                    .aspectRatio(4/3, contentMode: .fill)
+                    .overlay {
+                        ProgressView()
+                    }
+            } failure: {
+                Rectangle()
+                    .fill(categoryColor(for: venue.category).opacity(0.2))
+                    .aspectRatio(4/3, contentMode: .fill)
+                    .overlay {
+                        VStack(spacing: 8) {
+                            Image(systemName: categoryIcon(for: venue.category))
+                                .font(.system(size: 40))
+                                .foregroundColor(categoryColor(for: venue.category))
+                            Text("Image unavailable")
+                                .font(Theme.Fonts.caption)
                                 .foregroundColor(Theme.Colors.textSecondary)
                         }
-                @unknown default:
-                    // Fallback for future AsyncImagePhase cases
-                    Rectangle()
-                        .fill(Theme.Colors.secondaryBackground)
-                        .aspectRatio(4/3, contentMode: .fill)
-                }
+                    }
             }
             .clipped()
             
@@ -246,7 +240,15 @@ struct VenueCardView: View {
         // Toggle interest via AppState (persists to API)
         Task {
             do {
-                let response = try await appState.toggleInterest(venueId: venue.id)
+                // Create venue info for social feed broadcast
+                let venueInfo = ActivityVenue(
+                    id: venue.id,
+                    name: venue.name,
+                    category: venue.category,
+                    image: venue.image
+                )
+                
+                let response = try await appState.toggleInterest(venueId: venue.id, venueInfo: venueInfo)
                 
                 // Check if operation was successful
                 if response.success {
@@ -310,6 +312,28 @@ struct VenueCardView: View {
             return Theme.Colors.Category.entertainment
         default:
             return Theme.Colors.textSecondary
+        }
+    }
+    
+    /// Returns an icon based on venue category
+    /// - Parameter category: The venue category string
+    /// - Returns: SF Symbol name for the category
+    private func categoryIcon(for category: String) -> String {
+        switch category.lowercased() {
+        case "coffee shop", "coffee", "café", "cafe":
+            return "cup.and.saucer.fill"
+        case "restaurant", "food", "dining":
+            return "fork.knife"
+        case "bar", "nightlife", "pub", "lounge":
+            return "wineglass.fill"
+        case "museum", "cultural", "culture", "art", "gallery":
+            return "building.columns.fill"
+        case "park", "outdoor", "nature":
+            return "leaf.fill"
+        case "entertainment", "theater", "cinema":
+            return "theatermasks.fill"
+        default:
+            return "photo.fill"
         }
     }
 }
