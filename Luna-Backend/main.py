@@ -22,7 +22,8 @@ DATABASE:
 """
 
 import logging
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from contextlib import asynccontextmanager
 
@@ -35,7 +36,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Database imports
 from database import init_db, close_db, get_db
-from models.db_models import UserDB, VenueDB, InterestDB, UserInterestDB, FriendshipDB, ActionItemDB, ActivityDB
+from models.db_models import (
+    UserDB, VenueDB, InterestDB, UserInterestDB, FriendshipDB, 
+    ActionItemDB, ActivityDB, ActionItemConfirmationDB,
+    ChatDB, ChatParticipantDB, ChatMessageDB
+)
 from models.api_models import ActionItem
 from seed_data import check_and_seed
 from agent import action_item_agent
@@ -913,8 +918,9 @@ async def express_interest(request: InterestRequest) -> InterestResponse:
                         action_code=agent_response["action_code"],
                         description=agent_response["description"],
                         threshold_met=True,
-                        status="pending",
-                        created_at=agent_response["created_at"]
+                        status="active",  # Changed from 'pending' to 'active'
+                        created_at=agent_response["created_at"],
+                        expires_at=agent_response["expires_at"]  # 90 days from creation
                     )
                     session.add(action_item)
                     
@@ -1559,5 +1565,910 @@ async def dismiss_action_item(item_id: str, user_id: str) -> SuccessResponse:
         )
 
 
-# Note: Bookings endpoints not implemented as bookings_list was not defined in original code
-# These would follow the same pattern as action items if needed
+# ============================================================
+# NEW ACTION ITEM ENDPOINTS
+# ============================================================
+
+class InitiateRequest(BaseModel):
+    """Request model for initiating Go Ahead flow."""
+    user_id: str
+
+
+class ConfirmDeclineRequest(BaseModel):
+    """Request model for confirming or declining action item."""
+    user_id: str
+
+
+class CreateChatRequest(BaseModel):
+    """Request model for creating a group chat."""
+    action_item_id: Optional[str] = None
+    venue_id: str
+    created_by: str
+    participant_user_ids: List[str]
+
+
+class SendMessageRequest(BaseModel):
+    """Request model for sending a chat message."""
+    sender_id: str
+    content: str
+
+
+@app.post("/action-items/{item_id}/initiate")
+async def initiate_action_item(item_id: str, request: InitiateRequest):
+    """
+    Initiate the "Go Ahead" flow for an action item.
+    
+    Creates confirmation records for all interested users except the initiator.
+    
+    Args:
+        item_id: The ID of the action item
+        request: InitiateRequest containing initiator user_id
+        
+    Returns:
+        JSON object with confirmation statuses for all users
+    """
+    logger.info(f"Initiating Go Ahead flow for action item: {item_id} by user: {request.user_id}")
+    
+    async with get_db() as session:
+        action_item = await session.get(ActionItemDB, item_id)
+        
+        if not action_item:
+            raise HTTPException(status_code=404, detail=f"Action item '{item_id}' not found")
+        
+        if action_item.status != "active":
+            raise HTTPException(status_code=400, detail=f"Action item is not active (status: {action_item.status})")
+        
+        if request.user_id not in action_item.interested_user_ids:
+            raise HTTPException(status_code=403, detail="User not authorized for this action item")
+        
+        # Check if confirmations already exist
+        result = await session.execute(
+            select(ActionItemConfirmationDB)
+            .where(ActionItemConfirmationDB.action_item_id == item_id)
+        )
+        existing_confirmations = result.scalars().all()
+        
+        if existing_confirmations:
+            # Return existing confirmations
+            confirmations = []
+            for conf in existing_confirmations:
+                user = await session.get(UserDB, conf.user_id)
+                confirmations.append({
+                    "user_id": conf.user_id,
+                    "name": user.name if user else "Unknown",
+                    "avatar": user.avatar if user else "",
+                    "status": conf.status,
+                    "responded_at": conf.responded_at.isoformat() if conf.responded_at else None
+                })
+            
+            # Add initiator as auto-confirmed
+            initiator = await session.get(UserDB, request.user_id)
+            return {
+                "action_item_id": item_id,
+                "initiator": {
+                    "user_id": request.user_id,
+                    "name": initiator.name if initiator else "Unknown",
+                    "avatar": initiator.avatar if initiator else "",
+                    "status": "confirmed"
+                },
+                "confirmations": confirmations
+            }
+        
+        # Create confirmation records for all users except initiator
+        confirmations = []
+        for user_id in action_item.interested_user_ids:
+            if user_id == request.user_id:
+                continue  # Skip initiator
+            
+            confirmation = ActionItemConfirmationDB(
+                id=str(uuid.uuid4()),
+                action_item_id=item_id,
+                user_id=user_id,
+                initiator_id=request.user_id,
+                status="pending",
+                created_at=datetime.now()
+            )
+            session.add(confirmation)
+            
+            user = await session.get(UserDB, user_id)
+            confirmations.append({
+                "user_id": user_id,
+                "name": user.name if user else "Unknown",
+                "avatar": user.avatar if user else "",
+                "status": "pending",
+                "responded_at": None
+            })
+        
+        await session.commit()
+        
+        initiator = await session.get(UserDB, request.user_id)
+        
+        logger.info(f"Created {len(confirmations)} confirmation requests for action item {item_id}")
+        
+        return {
+            "action_item_id": item_id,
+            "initiator": {
+                "user_id": request.user_id,
+                "name": initiator.name if initiator else "Unknown",
+                "avatar": initiator.avatar if initiator else "",
+                "status": "confirmed"
+            },
+            "confirmations": confirmations
+        }
+
+
+@app.get("/action-items/{item_id}/status")
+async def get_action_item_status(item_id: str):
+    """
+    Get confirmation statuses for all users in an action item.
+    
+    Args:
+        item_id: The ID of the action item
+        
+    Returns:
+        JSON object with list of confirmation statuses
+    """
+    logger.info(f"Getting status for action item: {item_id}")
+    
+    async with get_db() as session:
+        action_item = await session.get(ActionItemDB, item_id)
+        
+        if not action_item:
+            raise HTTPException(status_code=404, detail=f"Action item '{item_id}' not found")
+        
+        # Get venue info
+        venue = await session.get(VenueDB, action_item.venue_id)
+        
+        # Get confirmations
+        result = await session.execute(
+            select(ActionItemConfirmationDB)
+            .where(ActionItemConfirmationDB.action_item_id == item_id)
+        )
+        confirmations = result.scalars().all()
+        
+        # Get initiator if confirmations exist
+        initiator_id = confirmations[0].initiator_id if confirmations else None
+        
+        statuses = []
+        for conf in confirmations:
+            user = await session.get(UserDB, conf.user_id)
+            statuses.append({
+                "user_id": conf.user_id,
+                "name": user.name if user else "Unknown",
+                "avatar": user.avatar if user else "",
+                "status": conf.status,
+                "responded_at": conf.responded_at.isoformat() if conf.responded_at else None
+            })
+        
+        # Add initiator as confirmed
+        if initiator_id:
+            initiator = await session.get(UserDB, initiator_id)
+            initiator_status = {
+                "user_id": initiator_id,
+                "name": initiator.name if initiator else "Unknown",
+                "avatar": initiator.avatar if initiator else "",
+                "status": "confirmed",
+                "responded_at": None,
+                "is_initiator": True
+            }
+        else:
+            initiator_status = None
+        
+        # Check if chat was created
+        result = await session.execute(
+            select(ChatDB)
+            .where(ChatDB.action_item_id == item_id)
+        )
+        chat = result.scalar_one_or_none()
+        
+        return {
+            "action_item_id": item_id,
+            "venue": {
+                "id": venue.id,
+                "name": venue.name,
+                "category": venue.category,
+                "image": venue.image
+            } if venue else None,
+            "status": action_item.status,
+            "initiator": initiator_status,
+            "confirmations": statuses,
+            "chat_created": chat is not None,
+            "chat_id": chat.id if chat else None
+        }
+
+
+@app.post("/action-items/{item_id}/confirm")
+async def confirm_action_item(item_id: str, request: ConfirmDeclineRequest):
+    """
+    User confirms their interest in the action item.
+    
+    If 2+ users are confirmed (including initiator), auto-creates a group chat.
+    
+    Args:
+        item_id: The ID of the action item
+        request: ConfirmDeclineRequest containing user_id
+        
+    Returns:
+        JSON object with updated status and chat info if created
+    """
+    logger.info(f"User {request.user_id} confirming action item: {item_id}")
+    
+    async with get_db() as session:
+        # Find the confirmation record
+        result = await session.execute(
+            select(ActionItemConfirmationDB)
+            .where(
+                and_(
+                    ActionItemConfirmationDB.action_item_id == item_id,
+                    ActionItemConfirmationDB.user_id == request.user_id
+                )
+            )
+        )
+        confirmation = result.scalar_one_or_none()
+        
+        if not confirmation:
+            raise HTTPException(status_code=404, detail="Confirmation not found for this user")
+        
+        if confirmation.status != "pending":
+            raise HTTPException(status_code=400, detail=f"Already responded with status: {confirmation.status}")
+        
+        # Update confirmation
+        confirmation.status = "confirmed"
+        confirmation.responded_at = datetime.now()
+        
+        # Check total confirmed count (including initiator)
+        result = await session.execute(
+            select(func.count())
+            .select_from(ActionItemConfirmationDB)
+            .where(
+                and_(
+                    ActionItemConfirmationDB.action_item_id == item_id,
+                    ActionItemConfirmationDB.status == "confirmed"
+                )
+            )
+        )
+        confirmed_count = result.scalar() or 0
+        confirmed_count += 1  # Add this confirmation
+        confirmed_count += 1  # Add initiator (always confirmed)
+        
+        chat_created = False
+        chat_id = None
+        
+        # Auto-create chat if 2+ confirmed
+        if confirmed_count >= 2:
+            # Check if chat already exists
+            result = await session.execute(
+                select(ChatDB)
+                .where(ChatDB.action_item_id == item_id)
+            )
+            existing_chat = result.scalar_one_or_none()
+            
+            if not existing_chat:
+                action_item = await session.get(ActionItemDB, item_id)
+                
+                if action_item:
+                    # Create chat
+                    chat_id = str(uuid.uuid4())
+                    chat = ChatDB(
+                        id=chat_id,
+                        action_item_id=item_id,
+                        venue_id=action_item.venue_id,
+                        created_by=confirmation.initiator_id,
+                        created_at=datetime.now()
+                    )
+                    session.add(chat)
+                    
+                    # Add initiator as participant
+                    session.add(ChatParticipantDB(
+                        chat_id=chat_id,
+                        user_id=confirmation.initiator_id,
+                        joined_at=datetime.now()
+                    ))
+                    
+                    # Add all confirmed users as participants
+                    result = await session.execute(
+                        select(ActionItemConfirmationDB)
+                        .where(
+                            and_(
+                                ActionItemConfirmationDB.action_item_id == item_id,
+                                ActionItemConfirmationDB.status == "confirmed"
+                            )
+                        )
+                    )
+                    confirmed_users = result.scalars().all()
+                    
+                    for conf in confirmed_users:
+                        if conf.user_id != confirmation.initiator_id:
+                            session.add(ChatParticipantDB(
+                                chat_id=chat_id,
+                                user_id=conf.user_id,
+                                joined_at=datetime.now()
+                            ))
+                    
+                    # Add current user
+                    session.add(ChatParticipantDB(
+                        chat_id=chat_id,
+                        user_id=request.user_id,
+                        joined_at=datetime.now()
+                    ))
+                    
+                    chat_created = True
+                    logger.info(f"Auto-created chat {chat_id} for action item {item_id}")
+            else:
+                # Add user to existing chat
+                session.add(ChatParticipantDB(
+                    chat_id=existing_chat.id,
+                    user_id=request.user_id,
+                    joined_at=datetime.now()
+                ))
+                chat_id = existing_chat.id
+        
+        await session.commit()
+        
+        return {
+            "success": True,
+            "message": "Confirmation recorded",
+            "status": "confirmed",
+            "confirmed_count": confirmed_count,
+            "chat_created": chat_created,
+            "chat_id": chat_id
+        }
+
+
+@app.post("/action-items/{item_id}/decline")
+async def decline_action_item(item_id: str, request: ConfirmDeclineRequest):
+    """
+    User declines their interest in the action item.
+    
+    Args:
+        item_id: The ID of the action item
+        request: ConfirmDeclineRequest containing user_id
+        
+    Returns:
+        JSON object with updated status
+    """
+    logger.info(f"User {request.user_id} declining action item: {item_id}")
+    
+    async with get_db() as session:
+        result = await session.execute(
+            select(ActionItemConfirmationDB)
+            .where(
+                and_(
+                    ActionItemConfirmationDB.action_item_id == item_id,
+                    ActionItemConfirmationDB.user_id == request.user_id
+                )
+            )
+        )
+        confirmation = result.scalar_one_or_none()
+        
+        if not confirmation:
+            raise HTTPException(status_code=404, detail="Confirmation not found for this user")
+        
+        if confirmation.status != "pending":
+            raise HTTPException(status_code=400, detail=f"Already responded with status: {confirmation.status}")
+        
+        confirmation.status = "declined"
+        confirmation.responded_at = datetime.now()
+        
+        await session.commit()
+        
+        return {
+            "success": True,
+            "message": "Interest declined",
+            "status": "declined"
+        }
+
+
+@app.put("/action-items/{item_id}/dismiss")
+async def dismiss_action_item_put(item_id: str, request: ConfirmDeclineRequest):
+    """
+    Dismiss an action item for the calling user.
+    
+    Sets status to 'dismissed' and archived_at to now.
+    
+    Args:
+        item_id: The ID of the action item
+        request: Request containing user_id
+        
+    Returns:
+        SuccessResponse indicating result
+    """
+    logger.info(f"Dismissing action item: {item_id} by user={request.user_id}")
+    
+    async with get_db() as session:
+        action_item = await session.get(ActionItemDB, item_id)
+        
+        if not action_item:
+            raise HTTPException(status_code=404, detail=f"Action item '{item_id}' not found")
+        
+        if request.user_id not in action_item.interested_user_ids:
+            raise HTTPException(status_code=403, detail="User not authorized for this action item")
+        
+        action_item.status = "dismissed"
+        action_item.archived_at = datetime.now()
+        
+        await session.commit()
+        
+        return SuccessResponse(
+            success=True,
+            message="Action item dismissed"
+        )
+
+
+@app.get("/users/{user_id}/action-items")
+async def get_user_action_items(user_id: str):
+    """
+    Get active action items for a user.
+    
+    Returns action items where status='active' and user is in interested_user_ids.
+    Includes venue details, distance calculation, and friend data.
+    
+    Args:
+        user_id: The ID of the user
+        
+    Returns:
+        JSON object with list of active action items
+    """
+    logger.info(f"Fetching active action items for user: {user_id}")
+    
+    async with get_db() as session:
+        user = await session.get(UserDB, user_id)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+        
+        # Get active action items
+        result = await session.execute(
+            select(ActionItemDB)
+            .options(selectinload(ActionItemDB.venue))
+            .where(ActionItemDB.status == "active")
+        )
+        all_action_items = result.scalars().all()
+        
+        # Filter to items where user is interested
+        action_items = []
+        for item in all_action_items:
+            if user_id not in item.interested_user_ids:
+                continue
+            
+            venue = item.venue
+            
+            # Calculate distance
+            distance_km = None
+            if venue:
+                distance_km = haversine_distance(
+                    user.latitude, user.longitude,
+                    venue.latitude, venue.longitude
+                )
+            
+            # Get interested users info
+            interested_users = []
+            for uid in item.interested_user_ids:
+                u = await session.get(UserDB, uid)
+                if u:
+                    interested_users.append({
+                        "id": u.id,
+                        "name": u.name,
+                        "avatar": u.avatar
+                    })
+            
+            # Check if Go Ahead flow was initiated
+            result = await session.execute(
+                select(ActionItemConfirmationDB)
+                .where(ActionItemConfirmationDB.action_item_id == item.id)
+            )
+            confirmations = result.scalars().all()
+            go_ahead_initiated = len(confirmations) > 0
+            
+            action_items.append({
+                "id": item.id,
+                "venue_id": item.venue_id,
+                "action_type": item.action_type,
+                "action_code": item.action_code,
+                "description": item.description,
+                "status": item.status,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+                "expires_at": item.expires_at.isoformat() if item.expires_at else None,
+                "venue": {
+                    "id": venue.id,
+                    "name": venue.name,
+                    "category": venue.category,
+                    "image": venue.image,
+                    "address": venue.address,
+                    "distance_km": distance_km
+                } if venue else None,
+                "interested_users": interested_users,
+                "interested_count": len(item.interested_user_ids),
+                "go_ahead_initiated": go_ahead_initiated
+            })
+        
+        return {
+            "action_items": action_items,
+            "count": len(action_items)
+        }
+
+
+@app.get("/users/{user_id}/action-items/archive")
+async def get_user_archived_action_items(user_id: str):
+    """
+    Get archived action items for a user (dismissed, expired, completed).
+    
+    Args:
+        user_id: The ID of the user
+        
+    Returns:
+        JSON object with list of archived action items with status badges
+    """
+    logger.info(f"Fetching archived action items for user: {user_id}")
+    
+    async with get_db() as session:
+        user = await session.get(UserDB, user_id)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+        
+        # Get non-active action items
+        result = await session.execute(
+            select(ActionItemDB)
+            .options(selectinload(ActionItemDB.venue))
+            .where(ActionItemDB.status.in_(["dismissed", "expired", "completed"]))
+        )
+        all_action_items = result.scalars().all()
+        
+        action_items = []
+        for item in all_action_items:
+            if user_id not in item.interested_user_ids:
+                continue
+            
+            venue = item.venue
+            
+            action_items.append({
+                "id": item.id,
+                "venue_id": item.venue_id,
+                "action_code": item.action_code,
+                "description": item.description,
+                "status": item.status,
+                "status_badge": item.status.upper(),
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+                "archived_at": item.archived_at.isoformat() if item.archived_at else None,
+                "venue": {
+                    "id": venue.id,
+                    "name": venue.name,
+                    "category": venue.category,
+                    "image": venue.image
+                } if venue else None
+            })
+        
+        return {
+            "archived_items": action_items,
+            "count": len(action_items)
+        }
+
+
+@app.get("/action-items/expire")
+async def expire_action_items():
+    """
+    Check and expire action items older than 90 days.
+    
+    Can be called on app launch or as a scheduled task.
+    
+    Returns:
+        JSON object with count of expired items
+    """
+    logger.info("Running action item expiration check")
+    
+    async with get_db() as session:
+        now = datetime.now()
+        
+        result = await session.execute(
+            select(ActionItemDB)
+            .where(
+                and_(
+                    ActionItemDB.status == "active",
+                    ActionItemDB.expires_at <= now
+                )
+            )
+        )
+        expired_items = result.scalars().all()
+        
+        expired_count = 0
+        for item in expired_items:
+            item.status = "expired"
+            item.archived_at = now
+            expired_count += 1
+        
+        if expired_count > 0:
+            await session.commit()
+        
+        logger.info(f"Expired {expired_count} action items")
+        
+        return {
+            "success": True,
+            "expired_count": expired_count,
+            "checked_at": now.isoformat()
+        }
+
+
+# ============================================================
+# CHAT ENDPOINTS
+# ============================================================
+
+@app.post("/chats")
+async def create_chat(request: CreateChatRequest):
+    """
+    Create a group chat.
+    
+    Args:
+        request: CreateChatRequest with venue_id, created_by, participant_user_ids
+        
+    Returns:
+        JSON object with created chat info
+    """
+    logger.info(f"Creating chat for venue: {request.venue_id} by user: {request.created_by}")
+    
+    async with get_db() as session:
+        # Validate venue
+        venue = await session.get(VenueDB, request.venue_id)
+        if not venue:
+            raise HTTPException(status_code=404, detail=f"Venue '{request.venue_id}' not found")
+        
+        # Validate creator
+        creator = await session.get(UserDB, request.created_by)
+        if not creator:
+            raise HTTPException(status_code=404, detail=f"User '{request.created_by}' not found")
+        
+        # Create chat
+        chat_id = str(uuid.uuid4())
+        chat = ChatDB(
+            id=chat_id,
+            action_item_id=request.action_item_id,
+            venue_id=request.venue_id,
+            created_by=request.created_by,
+            created_at=datetime.now()
+        )
+        session.add(chat)
+        
+        # Add participants
+        for user_id in request.participant_user_ids:
+            session.add(ChatParticipantDB(
+                chat_id=chat_id,
+                user_id=user_id,
+                joined_at=datetime.now()
+            ))
+        
+        await session.commit()
+        
+        return {
+            "success": True,
+            "chat": {
+                "id": chat_id,
+                "venue_id": request.venue_id,
+                "venue_name": venue.name,
+                "created_by": request.created_by,
+                "participant_count": len(request.participant_user_ids),
+                "created_at": chat.created_at.isoformat()
+            }
+        }
+
+
+@app.get("/chats/{chat_id}/messages")
+async def get_chat_messages(chat_id: str, page: int = 1, limit: int = 50):
+    """
+    Get messages from a chat.
+    
+    Args:
+        chat_id: The ID of the chat
+        page: Page number (default 1)
+        limit: Messages per page (default 50)
+        
+    Returns:
+        JSON object with messages and sender info
+    """
+    logger.info(f"Fetching messages for chat: {chat_id}")
+    
+    async with get_db() as session:
+        chat = await session.get(ChatDB, chat_id)
+        if not chat:
+            raise HTTPException(status_code=404, detail=f"Chat '{chat_id}' not found")
+        
+        # Get messages with pagination
+        offset = (page - 1) * limit
+        result = await session.execute(
+            select(ChatMessageDB)
+            .where(ChatMessageDB.chat_id == chat_id)
+            .order_by(ChatMessageDB.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        messages_db = result.scalars().all()
+        
+        messages = []
+        for msg in messages_db:
+            sender = await session.get(UserDB, msg.sender_id)
+            messages.append({
+                "id": msg.id,
+                "sender": {
+                    "id": sender.id,
+                    "name": sender.name,
+                    "avatar": sender.avatar
+                } if sender else None,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat()
+            })
+        
+        # Get total count
+        count_result = await session.execute(
+            select(func.count())
+            .select_from(ChatMessageDB)
+            .where(ChatMessageDB.chat_id == chat_id)
+        )
+        total_count = count_result.scalar() or 0
+        
+        return {
+            "chat_id": chat_id,
+            "messages": messages,
+            "page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "has_more": offset + len(messages) < total_count
+        }
+
+
+@app.post("/chats/{chat_id}/messages")
+async def send_chat_message(chat_id: str, request: SendMessageRequest):
+    """
+    Send a message in a chat.
+    
+    Validates that sender is a participant.
+    
+    Args:
+        chat_id: The ID of the chat
+        request: SendMessageRequest with sender_id and content
+        
+    Returns:
+        JSON object with created message
+    """
+    logger.info(f"User {request.sender_id} sending message to chat: {chat_id}")
+    
+    async with get_db() as session:
+        chat = await session.get(ChatDB, chat_id)
+        if not chat:
+            raise HTTPException(status_code=404, detail=f"Chat '{chat_id}' not found")
+        
+        # Validate sender is participant
+        result = await session.execute(
+            select(ChatParticipantDB)
+            .where(
+                and_(
+                    ChatParticipantDB.chat_id == chat_id,
+                    ChatParticipantDB.user_id == request.sender_id
+                )
+            )
+        )
+        participant = result.scalar_one_or_none()
+        
+        if not participant:
+            raise HTTPException(status_code=403, detail="User is not a participant in this chat")
+        
+        # Create message
+        message_id = str(uuid.uuid4())
+        message = ChatMessageDB(
+            id=message_id,
+            chat_id=chat_id,
+            sender_id=request.sender_id,
+            content=request.content,
+            created_at=datetime.now()
+        )
+        session.add(message)
+        
+        await session.commit()
+        
+        sender = await session.get(UserDB, request.sender_id)
+        
+        return {
+            "success": True,
+            "message": {
+                "id": message_id,
+                "chat_id": chat_id,
+                "sender": {
+                    "id": sender.id,
+                    "name": sender.name,
+                    "avatar": sender.avatar
+                } if sender else None,
+                "content": request.content,
+                "created_at": message.created_at.isoformat()
+            }
+        }
+
+
+@app.get("/users/{user_id}/chats")
+async def get_user_chats(user_id: str):
+    """
+    Get all chats for a user.
+    
+    Includes venue info, participant avatars, and last message.
+    
+    Args:
+        user_id: The ID of the user
+        
+    Returns:
+        JSON object with list of chats
+    """
+    logger.info(f"Fetching chats for user: {user_id}")
+    
+    async with get_db() as session:
+        user = await session.get(UserDB, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+        
+        # Get chat IDs where user is participant
+        result = await session.execute(
+            select(ChatParticipantDB.chat_id)
+            .where(ChatParticipantDB.user_id == user_id)
+        )
+        chat_ids = [row[0] for row in result.all()]
+        
+        if not chat_ids:
+            return {"chats": [], "count": 0}
+        
+        # Get chats
+        result = await session.execute(
+            select(ChatDB)
+            .where(ChatDB.id.in_(chat_ids))
+            .order_by(ChatDB.created_at.desc())
+        )
+        chats_db = result.scalars().all()
+        
+        chats = []
+        for chat in chats_db:
+            venue = await session.get(VenueDB, chat.venue_id)
+            
+            # Get participants
+            result = await session.execute(
+                select(ChatParticipantDB)
+                .where(ChatParticipantDB.chat_id == chat.id)
+            )
+            participants = result.scalars().all()
+            
+            participant_avatars = []
+            for p in participants[:5]:  # Limit to 5 avatars
+                u = await session.get(UserDB, p.user_id)
+                if u:
+                    participant_avatars.append(u.avatar)
+            
+            # Get last message
+            result = await session.execute(
+                select(ChatMessageDB)
+                .where(ChatMessageDB.chat_id == chat.id)
+                .order_by(ChatMessageDB.created_at.desc())
+                .limit(1)
+            )
+            last_message = result.scalar_one_or_none()
+            
+            last_message_info = None
+            if last_message:
+                sender = await session.get(UserDB, last_message.sender_id)
+                last_message_info = {
+                    "sender_name": sender.name if sender else "Unknown",
+                    "content": last_message.content[:50] + "..." if len(last_message.content) > 50 else last_message.content,
+                    "created_at": last_message.created_at.isoformat()
+                }
+            
+            chats.append({
+                "id": chat.id,
+                "venue": {
+                    "id": venue.id,
+                    "name": venue.name,
+                    "category": venue.category,
+                    "image": venue.image
+                } if venue else None,
+                "participant_count": len(participants),
+                "participant_avatars": participant_avatars,
+                "last_message": last_message_info,
+                "created_at": chat.created_at.isoformat()
+            })
+        
+        return {
+            "chats": chats,
+            "count": len(chats)
+        }

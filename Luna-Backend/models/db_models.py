@@ -222,39 +222,46 @@ class ActionItemDB(Base):
     """
     Action item model for trackable actions when venue interest threshold met.
     
-    Created when 4+ users express interest in a venue.
+    Created when 5+ users express interest in a venue.
     Users can track these items and take manual action (booking, visiting, etc).
     
     Attributes:
-        id: Unique identifier
+        id: UUID4 unique identifier
         venue_id: ID of the venue this action item is for
         interested_user_ids: JSON array of user IDs who expressed interest
         action_type: Type of action ("book_venue" or "visit_venue")
         action_code: Unique code for reference (e.g., "LUNA-venue_1-1234")
         description: Human-readable description
-        status: Current status ("pending", "completed", "dismissed")
+        status: Current status ("active", "dismissed", "expired", "completed")
         threshold_met: Whether the interest threshold was met
         created_at: Timestamp when action item was created
+        expires_at: Timestamp when action item expires (90 days from creation)
+        archived_at: Timestamp when action item was archived (dismissed/expired)
     """
     __tablename__ = "action_items"
     
-    id = Column(String(100), primary_key=True)
+    id = Column(String(100), primary_key=True)  # UUID4 format
     venue_id = Column(String(100), ForeignKey("venues.id", ondelete="CASCADE"), nullable=False)
     interested_user_ids = Column(JSON, nullable=False)  # Store as JSON array
     action_type = Column(String(50), nullable=False)  # "book_venue" or "visit_venue"
     action_code = Column(String(100), nullable=False, unique=True)
     description = Column(Text, nullable=False)
-    status = Column(String(50), nullable=False, default="pending")  # "pending", "completed", "dismissed"
+    status = Column(String(20), nullable=False, default="active")  # "active", "dismissed", "expired", "completed"
     threshold_met = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(), nullable=False)
+    expires_at = Column(DateTime, nullable=True)  # 90 days from creation
+    archived_at = Column(DateTime, nullable=True)  # Set when dismissed/expired/completed
     
     # Relationships
     venue = relationship("VenueDB", back_populates="action_items")
+    confirmations = relationship("ActionItemConfirmationDB", back_populates="action_item", cascade="all, delete-orphan")
+    chats = relationship("ChatDB", back_populates="action_item", cascade="all, delete-orphan")
     
     # Indexes
     __table_args__ = (
         Index('idx_action_item_venue', 'venue_id'),
         Index('idx_action_item_status', 'status'),
+        Index('idx_action_item_expires', 'expires_at'),
     )
     
     def __repr__(self):
@@ -296,3 +303,150 @@ class ActivityDB(Base):
     
     def __repr__(self):
         return f"<ActivityDB(id={self.id}, user_id={self.user_id}, action={self.action})>"
+
+
+class ActionItemConfirmationDB(Base):
+    """
+    Confirmation model for "Go Ahead" flow in action items.
+    
+    Tracks each user's response when someone initiates the Go Ahead flow.
+    Used to coordinate group visits before creating a chat.
+    
+    Attributes:
+        id: UUID4 unique identifier
+        action_item_id: ID of the parent action item
+        user_id: ID of the user being asked to confirm
+        initiator_id: ID of the user who initiated the Go Ahead flow
+        status: Confirmation status (pending, confirmed, declined)
+        responded_at: When the user responded (null if pending)
+        created_at: When the confirmation request was created
+    """
+    __tablename__ = "action_item_confirmations"
+    
+    id = Column(String(100), primary_key=True)  # UUID4 format
+    action_item_id = Column(String(100), ForeignKey("action_items.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(100), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    initiator_id = Column(String(100), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(20), nullable=False, default="pending")  # "pending", "confirmed", "declined"
+    responded_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(), nullable=False)
+    
+    # Relationships
+    action_item = relationship("ActionItemDB", back_populates="confirmations")
+    user = relationship("UserDB", foreign_keys=[user_id])
+    initiator = relationship("UserDB", foreign_keys=[initiator_id])
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_confirmation_action_item', 'action_item_id'),
+        Index('idx_confirmation_user', 'user_id'),
+        Index('idx_confirmation_status', 'status'),
+    )
+    
+    def __repr__(self):
+        return f"<ActionItemConfirmationDB(id={self.id}, action_item_id={self.action_item_id}, status={self.status})>"
+
+
+class ChatDB(Base):
+    """
+    Chat model for group chats created after 2+ users confirm interest.
+    
+    Links to an action item (optional) and venue. Created automatically
+    when enough users confirm in the Go Ahead flow.
+    
+    Attributes:
+        id: UUID4 unique identifier
+        action_item_id: Optional ID of the parent action item
+        venue_id: ID of the venue this chat is about
+        created_by: ID of the user who initiated the chat creation
+        created_at: When the chat was created
+    """
+    __tablename__ = "chats"
+    
+    id = Column(String(100), primary_key=True)  # UUID4 format
+    action_item_id = Column(String(100), ForeignKey("action_items.id", ondelete="SET NULL"), nullable=True)
+    venue_id = Column(String(100), ForeignKey("venues.id", ondelete="CASCADE"), nullable=False)
+    created_by = Column(String(100), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(), nullable=False)
+    
+    # Relationships
+    action_item = relationship("ActionItemDB", back_populates="chats")
+    venue = relationship("VenueDB")
+    creator = relationship("UserDB", foreign_keys=[created_by])
+    participants = relationship("ChatParticipantDB", back_populates="chat", cascade="all, delete-orphan")
+    messages = relationship("ChatMessageDB", back_populates="chat", cascade="all, delete-orphan")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_chat_action_item', 'action_item_id'),
+        Index('idx_chat_venue', 'venue_id'),
+        Index('idx_chat_created_by', 'created_by'),
+    )
+    
+    def __repr__(self):
+        return f"<ChatDB(id={self.id}, venue_id={self.venue_id})>"
+
+
+class ChatParticipantDB(Base):
+    """
+    Chat participant model for tracking chat membership.
+    
+    Composite primary key on (chat_id, user_id) to prevent duplicates.
+    
+    Attributes:
+        chat_id: ID of the chat
+        user_id: ID of the participant
+        joined_at: When the user joined the chat
+    """
+    __tablename__ = "chat_participants"
+    
+    chat_id = Column(String(100), ForeignKey("chats.id", ondelete="CASCADE"), primary_key=True)
+    user_id = Column(String(100), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    joined_at = Column(DateTime, default=lambda: datetime.now(), nullable=False)
+    
+    # Relationships
+    chat = relationship("ChatDB", back_populates="participants")
+    user = relationship("UserDB")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_participant_chat', 'chat_id'),
+        Index('idx_participant_user', 'user_id'),
+    )
+    
+    def __repr__(self):
+        return f"<ChatParticipantDB(chat_id={self.chat_id}, user_id={self.user_id})>"
+
+
+class ChatMessageDB(Base):
+    """
+    Chat message model for storing chat messages.
+    
+    Attributes:
+        id: UUID4 unique identifier
+        chat_id: ID of the chat this message belongs to
+        sender_id: ID of the user who sent the message
+        content: The message text content
+        created_at: When the message was sent
+    """
+    __tablename__ = "chat_messages"
+    
+    id = Column(String(100), primary_key=True)  # UUID4 format
+    chat_id = Column(String(100), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False)
+    sender_id = Column(String(100), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(), nullable=False)
+    
+    # Relationships
+    chat = relationship("ChatDB", back_populates="messages")
+    sender = relationship("UserDB")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_message_chat', 'chat_id'),
+        Index('idx_message_sender', 'sender_id'),
+        Index('idx_message_created', 'created_at'),
+    )
+    
+    def __repr__(self):
+        return f"<ChatMessageDB(id={self.id}, chat_id={self.chat_id})>"

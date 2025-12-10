@@ -26,8 +26,9 @@ EXAMPLE USAGE:
 """
 
 import random
+import uuid
 from typing import Dict, List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def action_item_agent(
@@ -70,9 +71,13 @@ def action_item_agent(
             "threshold_met": False
         }
     
-    # Generate unique action item ID and code
-    action_item_id = f"action_{venue_id}_{random.randint(1000, 9999)}"
-    action_code = f"LUNA-{venue_id}-{random.randint(1000, 9999)}"
+    # Generate unique action item ID and code using UUID4
+    action_item_id = str(uuid.uuid4())
+    action_code = f"LUNA-{venue_id}-{uuid.uuid4().hex[:8].upper()}"
+    
+    # Calculate expiration (90 days from now)
+    created_at = datetime.now()
+    expires_at = created_at + timedelta(days=90)
     
     # Determine action type based on venue category
     booking_categories = ["restaurant", "bar", "club", "lounge", "bistro", "cafe"]
@@ -116,6 +121,7 @@ def action_item_agent(
         "action_type": action_type,
         "interested_user_ids": interested_user_ids,
         "threshold_met": True,
-        "created_at": datetime.now(),  # Return datetime object, not ISO string
+        "created_at": created_at,  # Return datetime object
+        "expires_at": expires_at,  # 90 days from creation
         "notification_payload": notification_payload
     }

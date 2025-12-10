@@ -138,7 +138,8 @@ async def init_db() -> None:
         # Import all models to ensure they're registered with Base
         from models.db_models import (
             UserDB, VenueDB, InterestDB, UserInterestDB, 
-            FriendshipDB, ActionItemDB
+            FriendshipDB, ActionItemDB, ActivityDB,
+            ActionItemConfirmationDB, ChatDB, ChatParticipantDB, ChatMessageDB
         )
         
         async with engine.begin() as conn:
