@@ -203,3 +203,77 @@ struct SuccessResponse: Codable {
     let success: Bool
     let message: String
 }
+
+// MARK: - Confirmation Flow Models
+
+/// Status for individual user confirmation in Go Ahead flow
+struct ConfirmationStatus: Codable, Identifiable {
+    let user_id: String
+    let name: String
+    let avatar: String
+    let status: Status
+    let responded_at: String?
+    let is_initiator: Bool?
+    
+    var id: String { user_id }
+    
+    enum Status: String, Codable {
+        case pending
+        case confirmed
+        case declined
+    }
+}
+
+/// Initiator info in confirmation responses
+struct InitiatorInfo: Codable {
+    let user_id: String
+    let name: String
+    let avatar: String
+    let status: String
+}
+
+/// Response from POST /action-items/{id}/initiate
+struct InitiateActionItemResponse: Codable {
+    let action_item_id: String
+    let initiator: InitiatorInfo
+    let confirmations: [ConfirmationStatus]
+}
+
+/// Response from POST /action-items/{id}/confirm or /decline
+struct ConfirmationActionResponse: Codable {
+    let success: Bool
+    let message: String
+    let status: String
+    let confirmed_count: Int?
+    let chat_created: Bool?
+    let chat_id: String?
+}
+
+/// Venue info in action item status response
+struct ActionItemVenueInfo: Codable {
+    let id: String
+    let name: String
+    let category: String
+    let image: String
+}
+
+/// Response from GET /action-items/{id}/status
+struct ActionItemStatusResponse: Codable {
+    let action_item_id: String
+    let venue: ActionItemVenueInfo?
+    let status: String
+    let initiator: ConfirmationStatus?
+    let confirmations: [ConfirmationStatus]
+    let chat_created: Bool
+    let chat_id: String?
+}
+
+/// Request body for initiate action item endpoint
+struct InitiateActionItemRequest: Codable {
+    let user_id: String
+}
+
+/// Request body for confirm/decline action item endpoint
+struct ConfirmDeclineRequest: Codable {
+    let user_id: String
+}

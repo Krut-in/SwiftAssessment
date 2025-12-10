@@ -103,6 +103,12 @@ protocol APIServiceProtocol {
     func dismissActionItem(itemId: String, userId: String) async throws -> SuccessResponse
     func fetchActivities(userId: String, page: Int, limit: Int) async throws -> ActivitiesResponse
     func fetchSocialFeed(userId: String, page: Int, limit: Int, since: Date?) async throws -> SocialFeedResponse
+    
+    // Go Ahead Confirmation Flow
+    func initiateActionItem(itemId: String, userId: String) async throws -> InitiateActionItemResponse
+    func confirmActionItem(itemId: String, userId: String) async throws -> ConfirmationActionResponse
+    func declineActionItem(itemId: String, userId: String) async throws -> ConfirmationActionResponse
+    func getActionItemStatus(itemId: String) async throws -> ActionItemStatusResponse
 }
 
 // MARK: - API Service Implementation
@@ -274,6 +280,45 @@ class APIService: ObservableObject, APIServiceProtocol {
         }
         
         return try await performRequest(endpoint: "/social/feed", method: "GET", queryItems: queryItems)
+    }
+    
+    // MARK: - Go Ahead Confirmation Flow Methods
+    
+    /// Initiates the "Go Ahead" flow for an action item
+    /// - Parameters:
+    ///   - itemId: The ID of the action item to initiate
+    ///   - userId: The ID of the user initiating the action
+    /// - Returns: InitiateActionItemResponse with confirmation statuses for all users
+    func initiateActionItem(itemId: String, userId: String) async throws -> InitiateActionItemResponse {
+        let requestBody = InitiateActionItemRequest(user_id: userId)
+        return try await performRequestWithRetry(endpoint: "/action-items/\(itemId)/initiate", method: "POST", body: requestBody)
+    }
+    
+    /// Confirms the user's interest in an action item
+    /// - Parameters:
+    ///   - itemId: The ID of the action item
+    ///   - userId: The ID of the user confirming
+    /// - Returns: ConfirmationActionResponse with updated status
+    func confirmActionItem(itemId: String, userId: String) async throws -> ConfirmationActionResponse {
+        let requestBody = ConfirmDeclineRequest(user_id: userId)
+        return try await performRequestWithRetry(endpoint: "/action-items/\(itemId)/confirm", method: "POST", body: requestBody)
+    }
+    
+    /// Declines the user's interest in an action item
+    /// - Parameters:
+    ///   - itemId: The ID of the action item
+    ///   - userId: The ID of the user declining
+    /// - Returns: ConfirmationActionResponse with updated status
+    func declineActionItem(itemId: String, userId: String) async throws -> ConfirmationActionResponse {
+        let requestBody = ConfirmDeclineRequest(user_id: userId)
+        return try await performRequestWithRetry(endpoint: "/action-items/\(itemId)/decline", method: "POST", body: requestBody)
+    }
+    
+    /// Gets the current status of an action item including all confirmations
+    /// - Parameter itemId: The ID of the action item
+    /// - Returns: ActionItemStatusResponse with detailed status information
+    func getActionItemStatus(itemId: String) async throws -> ActionItemStatusResponse {
+        return try await performRequest(endpoint: "/action-items/\(itemId)/status", method: "GET")
     }
     
     // MARK: - Private Helper Methods

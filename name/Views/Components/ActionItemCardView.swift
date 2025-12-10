@@ -30,6 +30,14 @@ struct ActionItemCardView: View {
     let onDismiss: () -> Void
     let onTapCard: () -> Void
     
+    // State properties for Go Ahead flow
+    var isInitiated: Bool = false
+    var confirmationStatuses: [ConfirmationStatus] = []
+    var chatId: String? = nil
+    var onViewChat: (() -> Void)? = nil
+    
+    @State private var isInitiating = false
+    
     // MARK: - Body
     
     var body: some View {
@@ -72,48 +80,15 @@ struct ActionItemCardView: View {
                     Spacer()
                 }
                 
-                // Friend Avatar Stack
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.2.fill")
-                            .font(Theme.Fonts.caption)
-                        Text("\(actionItem.interested_user_ids.count) friends interested")
-                            .font(Theme.Fonts.caption)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundColor(Theme.Colors.accent)
-                    
-                    AvatarStackView(avatarURLs: mockAvatarURLs)
+                // Friend Avatar Stack or Waiting Status
+                if isInitiated {
+                    waitingStatusView
+                } else {
+                    friendsInterestedView
                 }
                 
                 // Action Buttons
-                HStack(spacing: Theme.Layout.spacing) {
-                    // Go Ahead Button (Primary)
-                    Button(action: onGoAhead) {
-                        Text("Go Ahead")
-                            .font(Theme.Fonts.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                            .background(Theme.Colors.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    // Dismiss Button (Secondary)
-                    Button(action: onDismiss) {
-                        Text("Dismiss")
-                            .font(Theme.Fonts.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(Theme.Colors.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                            .background(Theme.Colors.secondaryBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
+                actionButtonsView
             }
             .padding(Theme.Layout.padding)
             .background(Theme.Colors.cardBackground)
@@ -153,6 +128,157 @@ struct ActionItemCardView: View {
                 Image(systemName: "photo")
                     .foregroundColor(Theme.Colors.textSecondary)
             }
+    }
+    
+    private var friendsInterestedView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "person.2.fill")
+                    .font(Theme.Fonts.caption)
+                Text("\(actionItem.interested_user_ids.count) friends interested")
+                    .font(Theme.Fonts.caption)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(Theme.Colors.accent)
+            
+            AvatarStackView(avatarURLs: mockAvatarURLs)
+        }
+    }
+    
+    private var waitingStatusView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Waiting message
+            HStack(spacing: 6) {
+                Image(systemName: "clock")
+                    .foregroundColor(Theme.Colors.warning)
+                Text("Waiting for friends to confirm...")
+                    .font(Theme.Fonts.callout)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+            
+            // Confirmation count
+            let confirmed = confirmationStatuses.filter { $0.status == .confirmed }.count + 1 // +1 for initiator
+            let total = confirmationStatuses.count + 1 // +1 for initiator
+            Text("\(confirmed) of \(total) confirmed")
+                .font(Theme.Fonts.caption)
+                .fontWeight(.medium)
+                .foregroundColor(Theme.Colors.success)
+            
+            // Status badges row
+            HStack(spacing: -6) {
+                ForEach(Array(confirmationStatuses.prefix(5).enumerated()), id: \.element.id) { index, status in
+                    ZStack {
+                        AsyncImage(url: URL(string: status.avatar)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            default:
+                                Circle()
+                                    .fill(Theme.Colors.secondaryBackground)
+                            }
+                        }
+                        .frame(width: 32, height: 32)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Theme.Colors.cardBackground, lineWidth: 2))
+                        
+                        // Status indicator
+                        Circle()
+                            .fill(statusColor(for: status.status))
+                            .frame(width: 12, height: 12)
+                            .overlay(Circle().stroke(Theme.Colors.cardBackground, lineWidth: 2))
+                            .offset(x: 10, y: 10)
+                    }
+                    .zIndex(Double(5 - index))
+                }
+            }
+        }
+    }
+    
+    private var actionButtonsView: some View {
+        HStack(spacing: Theme.Layout.spacing) {
+            if let chatId = chatId, let onViewChat = onViewChat {
+                // View Chat Button (when chat is created)
+                Button {
+                    onViewChat()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bubble.left.and.bubble.right.fill")
+                            .font(.system(size: 14))
+                        Text("View Chat")
+                    }
+                    .font(Theme.Fonts.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Theme.Colors.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else if isInitiated {
+                // Initiated state - disabled Go Ahead
+                Text("Initiated")
+                    .font(Theme.Fonts.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Colors.textTertiary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Theme.Colors.secondaryBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
+            } else {
+                // Go Ahead Button (Primary)
+                Button {
+                    isInitiating = true
+                    onGoAhead()
+                } label: {
+                    HStack(spacing: 6) {
+                        if isInitiating {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .tint(.white)
+                        }
+                        Text("Go Ahead")
+                    }
+                    .font(Theme.Fonts.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Theme.Colors.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(isInitiating)
+            }
+            
+            // Dismiss Button (Secondary) - always visible
+            Button(action: onDismiss) {
+                Text("Dismiss")
+                    .font(Theme.Fonts.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.Colors.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Theme.Colors.secondaryBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.smallCornerRadius))
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func statusColor(for status: ConfirmationStatus.Status) -> Color {
+        switch status {
+        case .pending:
+            return Theme.Colors.textTertiary
+        case .confirmed:
+            return Theme.Colors.success
+        case .declined:
+            return Theme.Colors.error
+        }
     }
     
     // MARK: - Computed Properties
